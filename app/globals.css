@@ -1,26 +1,123 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
+/* ===== DAOX Design Tokens (Tailwind v4 @theme inline) ===== */
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  /* Fonts */
+  --font-sans: var(--font-hanken), var(--font-noto-jp), "Helvetica Neue", "Segoe UI",
+               "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+  --font-mono: "SF Mono", "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+
+  /* ── Nova Blue (アクセント/DAO金額/リンク) ── */
+  --color-nova-100: #f2f2ff;
+  --color-nova-200: #e5e5ff;
+  --color-nova-300: #ccccff;
+  --color-nova-400: #b2b2ff;
+  --color-nova-500: #9999ff;
+  --color-nova-600: #6666ff;
+  --color-nova-700: #4d4dff;
+  --color-nova-800: #1a1aff;
+  --color-nova-900: #0000ff;
+
+  /* ── Nebula Gray (blue-gray スケール) ── */
+  --color-nebula-100: #f1f1f5;
+  --color-nebula-200: #dedee5;
+  --color-nebula-300: #bbbbc0;
+  --color-nebula-400: #9a9aa0;
+  --color-nebula-500: #75758a;
+  --color-nebula-600: #525261;
+  --color-nebula-700: #3f3f39;
+  --color-nebula-800: #23232a;
+  --color-nebula-900: #1a1a1f;
+
+  /* ── Surfaces ── */
+  --color-surface:   #f1f1f5; /* section background   = nebula-100 */
+  --color-surface-2: #dedee5; /* chip/disabled bg      = nebula-200 */
+  --color-line:      #dedee5; /* border default        = nebula-200 */
+  --color-line-2:    #bbbbc0; /* border stronger       = nebula-300 */
+
+  /* ── Text ── */
+  --color-text-primary:   #1a1a1a; /* Solid Black */
+  --color-text-secondary: #525261; /* nebula-600  */
+  --color-text-muted:     #9a9aa0; /* nebula-400  */
+
+  /* ── Accent ── */
+  --color-accent:        #6666ff; /* Nova Blue 600 — CTA / link / DAO amount */
+  --color-accent-soft:   #f2f2ff; /* Nova Blue 100 */
+  --color-accent-strong: #1a1aff; /* Nova Blue 800 */
+
+  /* ── Status pill colors ── */
+  --color-status-open-bg:      #f2f2ff; /* Nova 100 */
+  --color-status-open-fg:      #4d4dff; /* Nova 700 */
+  --color-status-accepted-bg:  #e5e5ff; /* Nova 200 — active/in-progress */
+  --color-status-accepted-fg:  #6666ff; /* Nova 600 */
+  --color-status-pending-bg:   #fff8e0; /* Amber 50 — requires action */
+  --color-status-pending-fg:   #9a6000;
+  --color-status-paid-bg:      #e4f3eb; /* Green 50 — success */
+  --color-status-paid-fg:      #2d7a4a;
+  --color-status-unpaid-bg:    #dedee5; /* Nebula 200 */
+  --color-status-unpaid-fg:    #525261; /* Nebula 600 */
+  --color-status-continue-bg:  #f1f1f5; /* Nebula 100 */
+  --color-status-continue-fg:  #525261; /* Nebula 600 */
+
+  /* ── Typography Scale ── */
+  /* Matches the pixel values used throughout the design system.
+     Usage: text-[var(--text-xs)] or via Tailwind's text-* utilities where mapped. */
+  --text-3xs: 8px;    /* very small: chart axis ticks              */
+  --text-2xs: 9px;    /* tiny: badge counts, chart labels          */
+  --text-xs:  11px;   /* small: pills, chips, captions             */
+  --text-sm:  12px;   /* body-small: table rows, admin items       */
+  --text-base: 13px;  /* body: nav items, card body                */
+  --text-md:  14px;   /* medium: card titles, list items           */
+  --text-lg:  15px;   /* large: page titles (SP)                   */
+  --text-xl:  17px;   /* x-large: admin page titles                */
+  --text-2xl: 20px;   /* 2xl: section headings                     */
+  --text-3xl: 24px;   /* 3xl: stat card values                     */
+  --text-4xl: 32px;   /* 4xl: hero display numbers                 */
+
+  /* ── Border Radius ── */
+  --radius-card:  24px;
+  --radius-btn:   999px;
+  --radius-input: 16px;
+  --radius-sm:    12px;
+  --radius-xs:    8px;
+
+  /* ── Shadows ── */
+  --shadow-1: 0 2px 8px rgba(0,0,0,.08);
+  --shadow-2: 0 4px 16px rgba(0,0,0,.12);
+  --shadow-3: 0 8px 32px rgba(0,0,0,.16);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* ===== Keyframe Animations ===== */
+@keyframes scanline {
+  0%   { transform: translateY(-80px); }
+  100% { transform: translateY(80px); }
+}
+
+/* html5-qrcode camera feed overrides */
+#qr-camera-feed video {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+}
+#qr-camera-feed canvas,
+#qr-camera-feed img,
+#qr-camera-feed button,
+#qr-camera-feed select,
+#qr-camera-feed p,
+#qr-camera-feed #qr-shaded-region {
+  display: none !important;
+}
+
+/* ===== Base Styles ===== */
+:root {
+  color-scheme: light;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background-color: #ffffff;
+  color: #1a1a1a;
+  font-family: var(--font-sans);
+  font-weight: 400;
 }
