@@ -1,31 +1,35 @@
-import type { Notice, BoardPost, Vote, Announcement } from "./types";
+import type { Notice, BoardPost, Vote } from "./types";
+import type { Announcement } from "@/components/atoms/AnnouncementBar";
 
 // ─── お知らせ ─────────────────────────────────────────────────────────────
 export const NOTICES: Notice[] = [
   {
-    id:       "n1",
-    tag:      "重要",
-    date:     "5/20",
-    title:    "今週の市役所窓口の臨時休業について",
-    body:     "5月23日(金)は終日休業となります。ご注意ください。",
-    isPinned: true,
-    authorId: "u_admin",
+    id:           "n1",
+    tag:          "重要",
+    date:         "5/20",
+    title:        "今週の市役所窓口の臨時休業について",
+    body:         "5月23日(金)は終日休業となります。ご注意ください。",
+    isPinned:     true,
+    showInBanner: true,
+    authorId:     "u_admin",
   },
   {
-    id:       "n2",
-    tag:      "お知らせ",
-    date:     "5/19",
-    title:    "夏祭り 出店者募集のお知らせ",
-    body:     "8/15開催。締切6/30まで。詳細は事務局まで。",
-    authorId: "u_admin",
+    id:           "n2",
+    tag:          "お知らせ",
+    date:         "5/19",
+    title:        "夏祭り 出店者募集のお知らせ",
+    body:         "8/15開催。締切6/30まで。詳細は事務局まで。",
+    showInBanner: true,
+    authorId:     "u_admin",
   },
   {
-    id:       "n3",
-    tag:      "イベント",
-    date:     "5/17",
-    title:    "商店街クリーン作戦のご案内",
-    body:     "6/1朝7時集合、ポイント付与あり。参加者はグループチャットへ。",
-    authorId: "u_admin",
+    id:           "n3",
+    tag:          "イベント",
+    date:         "5/17",
+    title:        "商店街クリーン作戦のご案内",
+    body:         "6/1朝7時集合、ポイント付与あり。参加者はグループチャットへ。",
+    showInBanner: true,
+    authorId:     "u_admin",
   },
   {
     id:       "n4",
@@ -37,6 +41,11 @@ export const NOTICES: Notice[] = [
   },
 ];
 
+// ─── アナウンスバー用データ (showInBanner=true の Notice を変換) ──────────
+export const BANNER_NOTICES: Announcement[] = NOTICES
+  .filter((n) => n.showInBanner)
+  .map((n) => ({ title: n.title, author: "運営事務局 @ 新富町" }));
+
 // ─── 掲示板投稿 ───────────────────────────────────────────────────────────
 export const BOARD_POSTS: BoardPost[] = [
   {
@@ -46,7 +55,6 @@ export const BOARD_POSTS: BoardPost[] = [
     tone:       0,
     xp:         1240,
     time:       "12分前",
-    tag:        "お仕事",
     tokens:     50,
     title:      "看板のリペイント手伝ってくれる人",
     body:       "土曜の朝3時間程度。経験不問、道具はこちらで。",
@@ -59,7 +67,6 @@ export const BOARD_POSTS: BoardPost[] = [
     tone:       1,
     xp:         4820,
     time:       "1時間前",
-    tag:        "相談",
     tokens:     null,
     title:      "新メニュー試食モニター募集",
     body:       "カフェ「ことり」より、5名様限定。",
@@ -72,7 +79,6 @@ export const BOARD_POSTS: BoardPost[] = [
     tone:       2,
     xp:         980,
     time:       "3時間前",
-    tag:        "物々交換",
     tokens:     20,
     title:      "家庭菜園のトマト譲ります",
     body:       "たくさん採れたので。容器持参希望。",
@@ -85,7 +91,6 @@ export const BOARD_POSTS: BoardPost[] = [
     tone:       3,
     xp:         620,
     time:       "昨日",
-    tag:        "お仕事",
     tokens:     120,
     title:      "チラシ配布スタッフ募集",
     body:       "配布エリア応相談、約2時間。",
@@ -121,13 +126,4 @@ export const VOTES: Vote[] = [
     ],
     status:   "open",
   },
-];
-
-// ─── アナウンスバー ───────────────────────────────────────────────────────
-export const ANNOUNCEMENTS: Announcement[] = [
-  { title: "皆さん、お疲れ様です！",                       author: "運営事務局 @ 新富町" },
-  { title: "5月23日(金) 市役所窓口の臨時休業について",     author: "運営事務局 @ 新富町" },
-  { title: "夏祭り 出店者募集のお知らせ — 締切 6/30",     author: "運営事務局 @ 新富町" },
-  { title: "商店街クリーン作戦のご案内 (6/1 朝7時集合)", author: "運営事務局 @ 新富町" },
-  { title: "新メンバー歓迎会 5月末開催予定です",           author: "運営事務局 @ 新富町" },
 ];

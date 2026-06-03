@@ -94,84 +94,82 @@ export interface TaskTicket {
   updatedAt:    string;
 }
 
-// ─── クーポン (2層構造) ────────────────────────────────────────────────────
-export type CouponStatus = "active" | "used" | "expired";
+// ─── トークン交換 (2層構造) ────────────────────────────────────────────────
+export type VoucherStatus = "active" | "used" | "expired";
 
-/** テンプレート — 店舗発行・在庫管理 */
-export interface CouponTemplate {
-  id:        string;
-  title:     string;
-  issuer:    string;
-  icon:      string;
-  cost:      number;      // DAOトークン
-  validDays: number;
-  stock:     number;      // 現在庫
-  terms:     string;
-  isHot?:    boolean;
-  isLow?:    boolean;
-  isSoldout?: boolean;
-  isLimited?: boolean;
+/** 交換先カタログ — 交換できるもの一覧 */
+export interface ExchangeItem {
+  id:          string;
+  title:       string;
+  issuerName:  string;
+  icon:        string;
+  cost:        number;      // 必要 DAOトークン
+  validDays:   number;
+  stock:       number;      // 現在庫
+  description: string;
+  isHot?:      boolean;
+  isLow?:      boolean;
+  isSoldout?:  boolean;
+  isLimited?:  boolean;
 }
 
-/** インスタンス — 保有1枚、固有 redeemCode */
-export interface CouponInstance {
+/** 交換券 — ユーザーが保有する1枚、固有 redeemCode */
+export interface ExchangeVoucher {
   id:          string;
-  templateId:  string;
+  itemId:      string;
   title:       string;
-  issuer:      string;
+  issuerName:  string;
   icon:        string;
   issuedAt:    string;
   expiresAt?:  string;
   daysLeft?:   number;
-  status:      CouponStatus;
+  status:      VoucherStatus;
   redeemCode:  string;   // 固有コード (QR表示用)
   usedAt?:     string;
 }
 
 // ─── ウォレット ──────────────────────────────────────────────────────────
 export type TxDirection = "in" | "out";
-export type TxKind = "task" | "checkin" | "transfer" | "coupon" | "reward" | "vote_reward";
+export type TxKind = "task" | "transfer" | "exchange" | "reward" | "vote_reward";
 
 export interface Transaction {
-  id:              string;
-  direction:       TxDirection;
-  kind:            TxKind;
-  counterparty:    string;   // 相手名 or システム名
-  desc:            string;
-  amount:          number;
-  time:            string;
-  balanceAfter:    number;
-  relatedTaskId?:  string;
-  relatedCouponId?: string;
+  id:                string;
+  direction:         TxDirection;
+  kind:              TxKind;
+  counterparty:      string;   // 相手名 or システム名
+  desc:              string;
+  amount:            number;
+  time:              string;
+  balanceAfter:      number;
+  relatedTaskId?:    string;
+  relatedExchangeId?: string;
 }
 
 // ─── お知らせ / 掲示板 / 投票 ───────────────────────────────────────────
 export type NoticeTag = "重要" | "お知らせ" | "イベント";
 
 export interface Notice {
-  id:        string;
-  tag:       NoticeTag;
-  date:      string;
-  title:     string;
-  body:      string;
-  isPinned?: boolean;
-  authorId:  string;
+  id:            string;
+  tag:           NoticeTag;
+  date:          string;
+  title:         string;
+  body:          string;
+  isPinned?:     boolean;
+  showInBanner?: boolean;
+  authorId:      string;
 }
 
-export type BoardTag = "お仕事" | "相談" | "物々交換" | "イベント" | "その他";
-
 export interface BoardPost {
-  id:        string;
-  authorId:  string;
+  id:         string;
+  authorId:   string;
   authorName: string;
-  tone:      number;
-  xp:        number;
-  time:      string;
-  tag:       BoardTag;
-  tokens?:   number | null;
-  title:     string;
-  body:      string;
-  isUnread?: boolean;
+  tone:       number;
+  xp:         number;
+  time:       string;
+  tokens?:    number | null;
+  title:      string;
+  body:       string;
+  isUnread?:  boolean;
 }
 
 export interface VoteOption {
@@ -187,11 +185,6 @@ export interface Vote {
   total:    number;
   options:  VoteOption[];
   status:   "open" | "closed";
-}
-
-export interface Announcement {
-  title:  string;
-  author: string;
 }
 
 // ─── DM ─────────────────────────────────────────────────────────────────

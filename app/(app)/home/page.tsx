@@ -13,7 +13,7 @@ import { NoticeList } from "@/components/home/NoticeList";
 import { BoardList } from "@/components/home/BoardList";
 import { VoteList } from "@/components/home/VoteList";
 import { RightPane } from "@/components/home/RightPane";
-import { NOTICES, BOARD_POSTS, VOTES, ANNOUNCEMENTS } from "@/mocks";
+import { NOTICES, BOARD_POSTS, VOTES, BANNER_NOTICES } from "@/mocks";
 
 const SP_TABS  = ["お知らせ", "掲示板", "投票"] as const;
 const PC_TABS  = ["お知らせ", "掲示板", "投票"] as const;
@@ -66,7 +66,7 @@ export default function HomePage() {
 
         {/* ── Announcement + Content (relative for absolute overlay) ── */}
         <div className="flex-1 overflow-hidden relative flex flex-col">
-          <AnnouncementBar items={ANNOUNCEMENTS} />
+          <AnnouncementBar items={BANNER_NOTICES} />
 
           <div className="flex-1 overflow-y-auto">
             {spTab === 0 && <NoticeList notices={NOTICES} />}
@@ -108,7 +108,7 @@ export default function HomePage() {
 
         {/* ── PC Announcement (relative for overlay) ── */}
         <div className="relative shrink-0">
-          <AnnouncementBar items={ANNOUNCEMENTS} />
+          <AnnouncementBar items={BANNER_NOTICES} />
         </div>
 
         {/* ── 2-column: メイン + 右ペイン ── */}

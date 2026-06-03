@@ -5,9 +5,9 @@ import { useRouter } from "next/navigation";
 import { TopBar, PcHeader, BackButton } from "@/components/atoms/TopBar";
 import { Button } from "@/components/atoms/Button";
 import { EmptyState } from "@/components/atoms/EmptyState";
-import { COUPON_CATALOG, MY_COUPONS } from "@/mocks/coupons";
+import { EXCHANGE_ITEMS, MY_VOUCHERS } from "@/mocks/coupons";
 import { DAO_BALANCE } from "@/mocks/wallet";
-import type { CouponTemplate, CouponInstance } from "@/mocks/types";
+import type { ExchangeItem, ExchangeVoucher } from "@/mocks/types";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -140,18 +140,18 @@ export default function CouponsPage() {
 
   const [view, setView] = useState<CouponView>("catalog");
   const [pcMode, setPcMode] = useState<PcMode>("catalog");
-  const [selectedTmpl, setSelectedTmpl] = useState<CouponTemplate | null>(null);
-  const [selectedInst, setSelectedInst] = useState<CouponInstance | null>(null);
+  const [selectedTmpl, setSelectedTmpl] = useState<ExchangeItem | null>(null);
+  const [selectedInst, setSelectedInst] = useState<ExchangeVoucher | null>(null);
   const [balance, setBalance] = useState(DAO_BALANCE);
-  const [ownedCoupons, setOwnedCoupons] = useState<CouponInstance[]>(MY_COUPONS);
+  const [ownedCoupons, setOwnedCoupons] = useState<ExchangeVoucher[]>(MY_VOUCHERS);
   const [exchangeTxId, setExchangeTxId] = useState("");
 
   const [catalogFilter, setCatalogFilter] = useState(0);
   const [myListTab, setMyListTab] = useState(0);
   const [pcCatalogFilter, setPcCatalogFilter] = useState(0);
   const [pcMyListTab, setPcMyListTab] = useState(0);
-  const [pcModalTmpl, setPcModalTmpl] = useState<CouponTemplate | null>(null);
-  const [pcUseInst, setPcUseInst] = useState<CouponInstance | null>(null);
+  const [pcModalTmpl, setPcModalTmpl] = useState<ExchangeItem | null>(null);
+  const [pcUseInst, setPcUseInst] = useState<ExchangeVoucher | null>(null);
   const [spQty, setSpQty] = useState(1);
 
   const FILTERS = ["すべて", "飲食", "お買物", "理容・美容", "イベント"];
@@ -162,31 +162,31 @@ export default function CouponsPage() {
 
   const seenIds = new Set<string>();
   const dedupedActive = activeInstances.filter((ci) => {
-    if (seenIds.has(ci.templateId)) return false;
-    seenIds.add(ci.templateId);
+    if (seenIds.has(ci.itemId)) return false;
+    seenIds.add(ci.itemId);
     return true;
   });
 
   const countByTmpl = activeInstances.reduce((m, ci) => {
-    m.set(ci.templateId, (m.get(ci.templateId) ?? 0) + 1);
+    m.set(ci.itemId, (m.get(ci.itemId) ?? 0) + 1);
     return m;
   }, new Map<string, number>());
 
-  const handleOpenDetail = (tmpl: CouponTemplate) => {
+  const handleOpenDetail = (tmpl: ExchangeItem) => {
     if (tmpl.isSoldout) return;
     setSelectedTmpl(tmpl);
     setSpQty(1);
     setView("detail");
   };
 
-  const handleExchange = (tmpl: CouponTemplate) => {
+  const handleExchange = (tmpl: ExchangeItem) => {
     const expiry = new Date();
     expiry.setDate(expiry.getDate() + tmpl.validDays);
-    const newInst: CouponInstance = {
+    const newInst: ExchangeVoucher = {
       id: `ci_${Date.now()}`,
-      templateId: tmpl.id,
+      itemId: tmpl.id,
       title: tmpl.title,
-      issuer: tmpl.issuer,
+      issuerName: tmpl.issuerName,
       icon: tmpl.icon,
       issuedAt: new Date().toISOString().slice(0, 10),
       expiresAt: expiry.toISOString().slice(0, 10),
@@ -205,7 +205,7 @@ export default function CouponsPage() {
     setView("exchange_success");
   };
 
-  const handleUse = (inst: CouponInstance) => {
+  const handleUse = (inst: ExchangeVoucher) => {
     setSelectedInst(inst);
     setView("use");
   };
@@ -272,7 +272,7 @@ export default function CouponsPage() {
             {/* Center grid */}
             <div className="flex-1 overflow-y-auto px-5 py-4">
               <div className="grid grid-cols-3 gap-3">
-                {COUPON_CATALOG.map((c) => {
+                {EXCHANGE_ITEMS.map((c) => {
                   const out = c.isSoldout;
                   return (
                     <div
@@ -286,7 +286,7 @@ export default function CouponsPage() {
                         <CouponIcon ch={c.icon} size={40} dim={out} />
                         <div className="flex-1 min-w-0">
                           <div className="text-[12.5px] font-bold leading-snug">{c.title}</div>
-                          <div className="text-[10.5px] text-[#525261] mt-0.5">{c.issuer}</div>
+                          <div className="text-[10.5px] text-[#525261] mt-0.5">{c.issuerName}</div>
                         </div>
                       </div>
                       <div className="flex items-center gap-1.5 mt-1">
@@ -338,7 +338,7 @@ export default function CouponsPage() {
                       <CouponIcon ch={pcModalTmpl.icon} size={64} />
                       <div className="flex-1 min-w-0">
                         <div className="text-[16px] font-bold mb-1">{pcModalTmpl.title}</div>
-                        <div className="text-[11.5px] text-[#525261]">{pcModalTmpl.issuer}</div>
+                        <div className="text-[11.5px] text-[#525261]">{pcModalTmpl.issuerName}</div>
                       </div>
                     </div>
                     <div className="flex items-center justify-center gap-3 px-5 py-4 border-b border-[#dedee5]">
@@ -360,8 +360,8 @@ export default function CouponsPage() {
                     <div className="px-5 py-2">
                       {[
                         ["有効期間", `引換から ${pcModalTmpl.validDays}日`],
-                        ["利用条件", pcModalTmpl.terms],
-                        ["発行店舗", pcModalTmpl.issuer],
+                        ["利用条件", pcModalTmpl.description],
+                        ["発行店舗", pcModalTmpl.issuerName],
                       ].map(([k, v]) => (
                         <div key={k} className="py-2 border-b border-[#dedee5] text-[11.5px]">
                           <div className="text-[#9a9aa0] mb-1">{k}</div>
@@ -424,7 +424,7 @@ export default function CouponsPage() {
             <div className="grid grid-cols-2 gap-3.5">
               {(pcMyListTab === 0 ? dedupedActive : inactiveInstances).map((c) => {
                 const soon = c.daysLeft !== undefined && c.daysLeft <= 7;
-                const count = countByTmpl.get(c.templateId) ?? 1;
+                const count = countByTmpl.get(c.itemId) ?? 1;
                 return (
                   <div
                     key={c.id}
@@ -440,7 +440,7 @@ export default function CouponsPage() {
                           </span>
                         )}
                       </div>
-                      <div className="text-[11px] text-[#525261]">{c.issuer}</div>
+                      <div className="text-[11px] text-[#525261]">{c.issuerName}</div>
                       {c.expiresAt && (
                         <div
                           className={`text-[10.5px] font-mono mt-1.5 ${
@@ -479,7 +479,7 @@ export default function CouponsPage() {
                   <div className="flex flex-col items-center px-6 py-5">
                     <CouponIcon ch={pcUseInst.icon} size={56} />
                     <div className="text-[16px] font-bold mt-2.5 text-center">{pcUseInst.title}</div>
-                    <div className="text-[11.5px] text-[#525261] mt-0.5">{pcUseInst.issuer}</div>
+                    <div className="text-[11.5px] text-[#525261] mt-0.5">{pcUseInst.issuerName}</div>
                     <div className="mt-3.5 p-3.5 border-2 border-[#1a1a1a] rounded-xl">
                       <FakeQR size={160} />
                     </div>
@@ -551,7 +551,7 @@ export default function CouponsPage() {
           </div>
           {/* Coupon list */}
           <div className="flex-1 overflow-y-auto">
-            {COUPON_CATALOG.map((c) => {
+            {EXCHANGE_ITEMS.map((c) => {
               const out = c.isSoldout;
               return (
                 <div
@@ -576,7 +576,7 @@ export default function CouponsPage() {
                         </span>
                       )}
                     </div>
-                    <div className="text-[10.5px] text-[#9a9aa0] mb-1">{c.issuer}</div>
+                    <div className="text-[10.5px] text-[#9a9aa0] mb-1">{c.issuerName}</div>
                     <div className="flex items-center gap-2">
                       <CostPill amt={c.cost} dim={out} />
                       <span
@@ -621,7 +621,7 @@ export default function CouponsPage() {
                     <CouponIcon ch={selectedTmpl.icon} size={64} />
                     <div className="flex-1 min-w-0">
                       <div className="text-[16px] font-bold mb-1">{selectedTmpl.title}</div>
-                      <div className="text-[11.5px] text-[#525261]">{selectedTmpl.issuer}</div>
+                      <div className="text-[11.5px] text-[#525261]">{selectedTmpl.issuerName}</div>
                     </div>
                   </div>
                   <div className="flex items-center justify-center gap-3 px-5 py-4 border-b border-[#dedee5]">
@@ -643,8 +643,8 @@ export default function CouponsPage() {
                   <div className="px-5 py-2">
                     {[
                       ["有効期間", `引換から ${selectedTmpl.validDays}日`],
-                      ["利用条件", selectedTmpl.terms],
-                      ["発行店舗", selectedTmpl.issuer],
+                      ["利用条件", selectedTmpl.description],
+                      ["発行店舗", selectedTmpl.issuerName],
                     ].map(([k, v]) => (
                       <div key={k} className="py-2 border-b border-[#dedee5] text-[11.5px]">
                         <div className="text-[#9a9aa0] mb-1">{k}</div>
@@ -712,7 +712,7 @@ export default function CouponsPage() {
             <div className="text-[22px] font-bold mt-1 text-center leading-snug">
               {selectedTmpl.title}
             </div>
-            <div className="text-[11.5px] text-[#9a9aa0] mt-0.5">{selectedTmpl.issuer}</div>
+            <div className="text-[11.5px] text-[#9a9aa0] mt-0.5">{selectedTmpl.issuerName}</div>
 
             {/* Preview card */}
             <div className="mt-5 w-full px-3.5 py-3.5 border-[1.5px] border-dashed border-[#1a1a1a] rounded-xl bg-[#f1f1f5] flex items-center gap-3">
@@ -805,7 +805,7 @@ export default function CouponsPage() {
                 const expired = c.status === "expired";
                 const dim = used || expired;
                 const soon = c.daysLeft !== undefined && c.daysLeft <= 7;
-                const count = countByTmpl.get(c.templateId) ?? 1;
+                const count = countByTmpl.get(c.itemId) ?? 1;
                 return (
                   <div
                     key={c.id}
@@ -823,7 +823,7 @@ export default function CouponsPage() {
                           </span>
                         )}
                       </div>
-                      <div className="text-[10.5px] text-[#525261] mb-1">{c.issuer}</div>
+                      <div className="text-[10.5px] text-[#525261] mb-1">{c.issuerName}</div>
                       <div
                         className={`text-[10px] font-mono ${
                           soon ? "text-[#a06b00] font-bold" : "text-[#9a9aa0]"
@@ -887,7 +887,7 @@ export default function CouponsPage() {
           <div className="flex-1 overflow-y-auto flex flex-col items-center px-6 pt-4 pb-4">
             <CouponIcon ch={selectedInst.icon} size={56} />
             <div className="text-[16px] font-bold mt-2.5 text-center">{selectedInst.title}</div>
-            <div className="text-[11.5px] text-[#525261] mt-0.5">{selectedInst.issuer}</div>
+            <div className="text-[11.5px] text-[#525261] mt-0.5">{selectedInst.issuerName}</div>
 
             {/* Warning */}
             <div className="mt-3.5 w-full flex gap-2 px-3 py-2.5 bg-[#fff3d6] rounded-lg text-[10.5px] text-[#7a5200] leading-relaxed">
@@ -946,7 +946,7 @@ export default function CouponsPage() {
             </div>
             <div className="text-[14px] text-[#525261] mt-4.5">使用しました</div>
             <div className="text-[20px] font-bold mt-1 text-center">{selectedInst.title}</div>
-            <div className="text-[11.5px] text-[#9a9aa0] mt-0.5">{selectedInst.issuer}</div>
+            <div className="text-[11.5px] text-[#9a9aa0] mt-0.5">{selectedInst.issuerName}</div>
 
             <div className="mt-5 w-full px-3 py-3 border border-[#dedee5] rounded-xl space-y-1">
               <InfoRow

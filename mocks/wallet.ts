@@ -16,16 +16,6 @@ export const TRANSACTIONS: Transaction[] = [
     relatedTaskId: "tmpl-003",
   },
   {
-    id:           "tx_checkin_01",
-    direction:    "in",
-    kind:         "checkin",
-    counterparty: "チェックイン",
-    desc:         "新富カフェ ことり",
-    amount:       10,
-    time:         "今日 12:34",
-    balanceAfter: 300,
-  },
-  {
     id:           "tx_transfer_01",
     direction:    "out",
     kind:         "transfer",
@@ -48,13 +38,13 @@ export const TRANSACTIONS: Transaction[] = [
   {
     id:           "tx_coupon_01",
     direction:    "out",
-    kind:         "coupon",
+    kind:         "exchange",
     counterparty: "商店街本部",
     desc:         "クリーン作戦景品",
     amount:       50,
     time:         "5/18",
     balanceAfter: 305,
-    relatedCouponId: "ct3",
+    relatedExchangeId: "ei3",
   },
   {
     id:           "tx_task_01",

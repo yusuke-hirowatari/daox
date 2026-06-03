@@ -14,9 +14,9 @@ import {
   TASK_TEMPLATES, TASK_TICKETS,
   getTicketsByTemplateId, getRemainingSlots,
   getMyActiveTickets, getMyOrderedTemplates,
-  COUPON_CATALOG, MY_COUPONS,
-  getActiveCoupons, getInactiveCoupons,
-  NOTICES, BOARD_POSTS, VOTES, ANNOUNCEMENTS,
+  EXCHANGE_ITEMS, MY_VOUCHERS,
+  getActiveVouchers, getInactiveVouchers,
+  NOTICES, BOARD_POSTS, VOTES, BANNER_NOTICES,
   TRANSACTIONS, DAO_BALANCE, getBalance,
   DM_THREADS, getMessagesByThreadId, DM_SUGGESTIONS,
   ALL_NOTIFICATIONS, getUnreadCount,
@@ -25,8 +25,8 @@ import {
 
 import type {
   User, TaskTemplate, TaskTicket,
-  CouponTemplate, CouponInstance,
-  Notice, BoardPost, Vote, Announcement,
+  ExchangeItem, ExchangeVoucher,
+  Notice, BoardPost, Vote,
   Transaction, DmThread, DmMessage, Notification,
   RankDef, PremiumRequirements,
 } from "@/mocks";
@@ -54,22 +54,22 @@ export const api = {
                            getMyOrderedTemplates(),
   },
 
-  // ─── Coupons ────────────────────────────────────────────────────────────
-  coupons: {
-    getCatalog:    async (): Promise<CouponTemplate[]>  => COUPON_CATALOG,
-    getByTemplateId: async (id: string): Promise<CouponTemplate | undefined> =>
-                     COUPON_CATALOG.find((c) => c.id === id),
-    getMyCoupons:  async (): Promise<CouponInstance[]> => MY_COUPONS,
-    getActive:     async (): Promise<CouponInstance[]> => getActiveCoupons(),
-    getInactive:   async (): Promise<CouponInstance[]> => getInactiveCoupons(),
+  // ─── Exchange ───────────────────────────────────────────────────────────
+  exchange: {
+    getItems:      async (): Promise<ExchangeItem[]>    => EXCHANGE_ITEMS,
+    getItemById:   async (id: string): Promise<ExchangeItem | undefined> =>
+                   EXCHANGE_ITEMS.find((c) => c.id === id),
+    getMyVouchers: async (): Promise<ExchangeVoucher[]> => MY_VOUCHERS,
+    getActive:     async (): Promise<ExchangeVoucher[]> => getActiveVouchers(),
+    getInactive:   async (): Promise<ExchangeVoucher[]> => getInactiveVouchers(),
   },
 
   // ─── Home / Community ───────────────────────────────────────────────────
   community: {
-    getNotices:       async (): Promise<Notice[]>       => NOTICES,
-    getBoardPosts:    async (): Promise<BoardPost[]>    => BOARD_POSTS,
-    getVotes:         async (): Promise<Vote[]>         => VOTES,
-    getAnnouncements: async (): Promise<Announcement[]> => ANNOUNCEMENTS,
+    getNotices:       async (): Promise<Notice[]>    => NOTICES,
+    getBoardPosts:    async (): Promise<BoardPost[]> => BOARD_POSTS,
+    getVotes:         async (): Promise<Vote[]>      => VOTES,
+    getBannerNotices: async ()                       => BANNER_NOTICES,
   },
 
   // ─── Wallet ─────────────────────────────────────────────────────────────
@@ -112,7 +112,7 @@ export {
   getUserById, getCurrentUser,
   getTicketsByTemplateId, getRemainingSlots,
   getMyActiveTickets, getMyOrderedTemplates,
-  getActiveCoupons, getInactiveCoupons,
+  getActiveVouchers, getInactiveVouchers,
   getMessagesByThreadId,
   getUnreadCount,
 };

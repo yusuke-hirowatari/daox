@@ -1,37 +1,18 @@
 "use client";
 
-import { useState } from "react";
 import { Avatar } from "@/components/atoms/Avatar";
-import { Chip } from "@/components/atoms/Chip";
 import { RankBadge } from "@/components/atoms/RankBadge";
 import type { BoardPost } from "@/mocks/types";
-
-const FILTERS = ["すべて", "お仕事", "相談", "物々交換", "イベント"] as const;
 
 interface BoardListProps {
   posts: BoardPost[];
 }
 
 export function BoardList({ posts }: BoardListProps) {
-  const [filter, setFilter] = useState<string>("すべて");
-
-  const filtered = filter === "すべて"
-    ? posts
-    : posts.filter((p) => p.tag === filter);
-
   return (
     <div className="flex flex-col">
-      {/* カテゴリフィルタ */}
-      <div className="flex gap-1.5 px-4 py-2 overflow-x-auto border-b border-[#dedee5] shrink-0 scrollbar-hide">
-        {FILTERS.map((f) => (
-          <Chip key={f} active={filter === f} onClick={() => setFilter(f)}>
-            {f}
-          </Chip>
-        ))}
-      </div>
-
       {/* 投稿リスト */}
-      {filtered.map((b) => (
+      {posts.map((b) => (
         <div
           key={b.id}
           className="flex gap-2.5 px-4 py-3 border-b border-[#dedee5] cursor-pointer hover:bg-[#f1f1f5] transition-colors"
@@ -42,7 +23,6 @@ export function BoardList({ posts }: BoardListProps) {
               <span className="text-[11.5px] font-semibold">{b.authorName}</span>
               <RankBadge xp={b.xp} compact showName={false} />
               <span className="text-[10px] text-[#9a9aa0]">{b.time}</span>
-              <Chip className="!text-[9.5px] !px-1.5 !py-0.5">{b.tag}</Chip>
               {b.tokens != null && (
                 <span className="text-[10px] font-bold font-mono text-[#6666ff]">
                   +{b.tokens} DAO

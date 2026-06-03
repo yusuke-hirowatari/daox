@@ -51,7 +51,7 @@ const ACTIVITY_PC = [
   { d: "今日 09:02", what: "掲示板に投稿: 看板リペイント手伝い",      xp: 15,  kind: "post",  amt: null },
   { d: "昨日 18:20", what: "タスク完了: チラシ配布",                  xp: 60,  kind: "task",  amt: 120 },
   { d: "昨日 09:15", what: "投票: ロゴ案A",                          xp: 5,   kind: "vote",  amt: null },
-  { d: "5/22 11:08", what: "クーポン引換: コーヒー1杯無料",           xp: null as number | null, kind: "coupon", amt: -50 },
+  { d: "5/22 11:08", what: "交換券引換: コーヒー1杯無料",             xp: null as number | null, kind: "exchange", amt: -50 },
   { d: "5/20",       what: "タスク公開: 看板リペイント手伝い",         xp: null, kind: "order", amt: null },
 ];
 
