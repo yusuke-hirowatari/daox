@@ -1,0 +1,410 @@
+// Prisma schema for DAOX
+// Supabase (PostgreSQL) + Prisma ORM
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Enums ───────────────────────────────────────────────────────────────────
+
+enum Role {
+  MEMBER
+  MODERATOR
+  SUPERADMIN
+}
+
+enum Rank {
+  BASIC
+  PREMIUM
+}
+
+enum TaskType {
+  ONCE
+  CONTINUE
+}
+
+enum TaskStatus {
+  OPEN
+  ACCEPTED
+  PENDING_APPROVAL
+  DONE
+  RETURNED
+}
+
+/// トークン交換券のステータス
+enum VoucherStatus {
+  ACTIVE
+  USED
+  EXPIRED
+}
+
+enum TxDirection {
+  IN
+  OUT
+}
+
+enum TxKind {
+  TASK
+  TRANSFER
+  EXCHANGE   // トークン交換 (旧 COUPON)
+  REWARD
+  VOTE_REWARD
+}
+
+/// "重要" | "お知らせ" | "イベント"
+enum NoticeTag {
+  IMPORTANT
+  NOTICE
+  EVENT
+}
+
+enum MessageKind {
+  TEXT
+  TOKEN
+  SYSTEM
+}
+
+enum NotifKind {
+  TOKEN
+  TASK
+  DM
+  VOTE
+  RANK
+  SYSTEM
+}
+
+enum VoteStatus {
+  OPEN
+  CLOSED
+}
+
+// ─── 認証・ユーザー系 ──────────────────────────────────────────────────────────
+
+model User {
+  id         String   @id
+  name       String
+  /// アバター頭文字 (1〜2文字)
+  initial    String
+  /// アバター色トーン 0〜4
+  tone       Int      @default(0)
+  role       Role     @default(MEMBER)
+  rank       Rank     @default(BASIC)
+  xp         Int      @default(0)
+  daoBalance Int      @default(0)
+  bio        String?
+  joinedAt   DateTime @default(now())
+  isOnline   Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  tags               UserTag[]
+  communities        UserCommunity[]
+  orderedTemplates   TaskTemplate[]
+  acceptedTickets    TaskTicket[]        @relation("AcceptedBy")
+  qaEntries          TaskQA[]
+  exchangeVouchers   ExchangeVoucher[]
+  transactions       Transaction[]
+  notifications      Notification[]
+  sentMessages       DmMessage[]
+  threadParticipants ThreadParticipant[]
+  boardPosts         BoardPost[]
+  notices            Notice[]
+  voteResponses      VoteResponse[]
+}
+
+model UserTag {
+  id     String @id @default(cuid())
+  userId String
+  tag    String
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Community {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
+
+  members UserCommunity[]
+  notices Notice[]
+  votes   Vote[]
+}
+
+model UserCommunity {
+  userId      String
+  communityId String
+  joinedAt    DateTime @default(now())
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  community Community @relation(fields: [communityId], references: [id], onDelete: Cascade)
+
+  @@id([userId, communityId])
+}
+
+// ─── タスク系 (2層構造) ────────────────────────────────────────────────────────
+
+model TaskTemplate {
+  id                     String   @id
+  title                  String
+  desc                   String
+  ordererId              String
+  totalSlots             Int
+  /// null = "未定"
+  defaultAmount          Int?
+  defaultAmountUndecided Boolean  @default(false)
+  defaultTime            String
+  deadline               DateTime
+  type                   TaskType @default(ONCE)
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  orderer User         @relation(fields: [ordererId], references: [id])
+  tickets TaskTicket[]
+  tags    TaskTag[]
+  qaList  TaskQA[]
+}
+
+model TaskTag {
+  id         String @id @default(cuid())
+  templateId String
+  tag        String
+
+  template TaskTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  @@index([templateId])
+}
+
+model TaskTicket {
+  id              String     @id
+  templateId      String
+  /// null = "未定"
+  amount          Int?
+  amountUndecided Boolean    @default(false)
+  time            String
+  status          TaskStatus @default(OPEN)
+  acceptedById    String?
+  deletedFlag     Boolean    @default(false)
+  reportText      String?
+  /// 承認時の確定金額 (金額未定タスクの場合)
+  confirmedAmount Int?
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  template   TaskTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  acceptedBy User?        @relation("AcceptedBy", fields: [acceptedById], references: [id])
+
+  @@index([templateId])
+  @@index([acceptedById])
+}
+
+model TaskQA {
+  id         String   @id @default(cuid())
+  templateId String
+  userId     String
+  question   String
+  answer     String?
+  createdAt  DateTime @default(now())
+
+  template TaskTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  user     User         @relation(fields: [userId], references: [id])
+
+  @@index([templateId])
+}
+
+// ─── トークン交換 (2層構造) ────────────────────────────────────────────────────
+// ExchangeItem  : 交換できるもの一覧（カタログ）
+// ExchangeVoucher: ユーザーが交換して手元に持つ券
+
+model ExchangeItem {
+  id           String  @id @default(cuid())
+  title        String
+  /// 発行元名 (店舗名・組織名など)
+  issuerName   String
+  icon         String
+  /// 必要トークン数
+  cost         Int
+  validDays    Int
+  stock        Int
+  description  String
+  isHot        Boolean @default(false)
+  isLow        Boolean @default(false)
+  isSoldout    Boolean @default(false)
+  isLimited    Boolean @default(false)
+
+  vouchers ExchangeVoucher[]
+}
+
+model ExchangeVoucher {
+  id         String        @id @default(cuid())
+  itemId     String
+  userId     String
+  issuedAt   DateTime      @default(now())
+  expiresAt  DateTime?
+  status     VoucherStatus @default(ACTIVE)
+  /// QR表示用の固有コード
+  redeemCode String        @unique
+  usedAt     DateTime?
+
+  item ExchangeItem @relation(fields: [itemId], references: [id])
+  user User         @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([itemId])
+}
+
+// ─── ウォレット ──────────────────────────────────────────────────────────────
+
+model Transaction {
+  id               String      @id @default(cuid())
+  userId           String
+  direction        TxDirection
+  kind             TxKind
+  counterparty     String
+  desc             String
+  amount           Int
+  time             DateTime    @default(now())
+  balanceAfter     Int
+  relatedTaskId    String?
+  relatedExchangeId String?
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+}
+
+// ─── コミュニティコンテンツ ────────────────────────────────────────────────────
+
+model Notice {
+  id           String    @id @default(cuid())
+  tag          NoticeTag
+  date         DateTime  @default(now())
+  title        String
+  body         String
+  isPinned     Boolean   @default(false)
+  /// アナウンスバーに流すかどうか
+  showInBanner Boolean   @default(false)
+  authorId     String
+  communityId  String?
+
+  author    User       @relation(fields: [authorId], references: [id])
+  community Community? @relation(fields: [communityId], references: [id])
+
+  @@index([communityId])
+}
+
+model BoardPost {
+  id       String   @id @default(cuid())
+  authorId String
+  time     DateTime @default(now())
+  tokens   Int?
+  title    String
+  body     String
+  isUnread Boolean  @default(false)
+
+  author User @relation(fields: [authorId], references: [id])
+
+  @@index([authorId])
+}
+
+model Vote {
+  id          String     @id @default(cuid())
+  title       String
+  deadline    DateTime
+  total       Int        @default(0)
+  status      VoteStatus @default(OPEN)
+  communityId String?
+
+  community Community?     @relation(fields: [communityId], references: [id])
+  options   VoteOption[]
+  responses VoteResponse[]
+}
+
+model VoteOption {
+  id        String @id @default(cuid())
+  voteId    String
+  label     String
+  voteCount Int    @default(0)
+
+  vote      Vote           @relation(fields: [voteId], references: [id], onDelete: Cascade)
+  responses VoteResponse[]
+
+  @@index([voteId])
+}
+
+model VoteResponse {
+  id       String @id @default(cuid())
+  voteId   String
+  optionId String
+  userId   String
+
+  vote   Vote       @relation(fields: [voteId], references: [id], onDelete: Cascade)
+  option VoteOption @relation(fields: [optionId], references: [id], onDelete: Cascade)
+  user   User       @relation(fields: [userId], references: [id])
+
+  @@unique([voteId, userId])
+  @@index([userId])
+}
+
+// ─── DM ─────────────────────────────────────────────────────────────────────
+
+model DmThread {
+  id        String   @id @default(cuid())
+  isGroup   Boolean  @default(false)
+  groupName String?
+  createdAt DateTime @default(now())
+
+  participants ThreadParticipant[]
+  messages     DmMessage[]
+}
+
+model ThreadParticipant {
+  threadId    String
+  userId      String
+  unreadCount Int    @default(0)
+
+  thread DmThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  user   User     @relation(fields: [userId], references: [id])
+
+  @@id([threadId, userId])
+}
+
+model DmMessage {
+  id          String      @id @default(cuid())
+  threadId    String
+  senderId    String
+  kind        MessageKind @default(TEXT)
+  text        String?
+  tokenAmount Int?
+  time        DateTime    @default(now())
+
+  thread DmThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  sender User     @relation(fields: [senderId], references: [id])
+
+  @@index([threadId])
+}
+
+// ─── 通知 ─────────────────────────────────────────────────────────────────────
+
+model Notification {
+  id           String    @id @default(cuid())
+  userId       String
+  kind         NotifKind
+  fromUserId   String?
+  fromUserName String?
+  fromUserTone Int?
+  text         String
+  meta         String?
+  time         DateTime  @default(now())
+  isRead       Boolean   @default(false)
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+}
