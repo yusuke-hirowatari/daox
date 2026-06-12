@@ -13,7 +13,10 @@ import { NoticeList } from "@/components/home/NoticeList";
 import { BoardList } from "@/components/home/BoardList";
 import { VoteList } from "@/components/home/VoteList";
 import { RightPane } from "@/components/home/RightPane";
-import { NOTICES, BOARD_POSTS, VOTES, BANNER_NOTICES } from "@/mocks";
+import { NoticeDetailModal } from "@/components/home/NoticeDetailModal";
+import { PostDetailModal } from "@/components/home/PostDetailModal";
+import { NOTICES, BOARD_POSTS, BOARD_COMMENTS, VOTES, BANNER_NOTICES } from "@/mocks";
+import type { Notice, BoardPost, BoardComment } from "@/mocks/types";
 
 const SP_TABS  = ["お知らせ", "掲示板", "投票"] as const;
 const PC_TABS  = ["お知らせ", "掲示板", "投票"] as const;
@@ -22,6 +25,25 @@ export default function HomePage() {
   const router = useRouter();
   const [spTab,  setSpTab]  = useState(0);
   const [pcTab,  setPcTab]  = useState(1); // PC は掲示板をデフォルト表示
+
+  // 詳細モーダル
+  const [selectedNotice, setSelectedNotice] = useState<Notice | null>(null);
+  const [selectedPost, setSelectedPost] = useState<BoardPost | null>(null);
+  const [comments, setComments] = useState<BoardComment[]>(BOARD_COMMENTS);
+
+  const handleComment = (postId: string, text: string) => {
+    const newComment: BoardComment = {
+      id: `bc_${Date.now()}`,
+      postId,
+      authorId: "u1",
+      authorName: "田中",
+      tone: 0,
+      xp: 1240,
+      text,
+      time: "たった今",
+    };
+    setComments((prev) => [...prev, newComment]);
+  };
 
   return (
     <div className="flex flex-col h-full">
@@ -69,8 +91,8 @@ export default function HomePage() {
           <AnnouncementBar items={BANNER_NOTICES} />
 
           <div className="flex-1 overflow-y-auto">
-            {spTab === 0 && <NoticeList notices={NOTICES} />}
-            {spTab === 1 && <BoardList posts={BOARD_POSTS} />}
+            {spTab === 0 && <NoticeList notices={NOTICES} onSelect={setSelectedNotice} />}
+            {spTab === 1 && <BoardList posts={BOARD_POSTS} comments={comments} onSelect={setSelectedPost} />}
             {spTab === 2 && <VoteList votes={VOTES} />}
           </div>
 
@@ -118,8 +140,8 @@ export default function HomePage() {
           <div className="flex flex-1 flex-col overflow-hidden min-w-0">
             <TopTabs tabs={[...PC_TABS]} defaultIndex={pcTab} onChange={setPcTab} />
             <div className="flex-1 overflow-y-auto">
-              {pcTab === 0 && <NoticeList notices={NOTICES} />}
-              {pcTab === 1 && <BoardList posts={BOARD_POSTS} />}
+              {pcTab === 0 && <NoticeList notices={NOTICES} onSelect={setSelectedNotice} />}
+              {pcTab === 1 && <BoardList posts={BOARD_POSTS} comments={comments} onSelect={setSelectedPost} />}
               {pcTab === 2 && <VoteList votes={VOTES} />}
             </div>
           </div>
@@ -128,6 +150,10 @@ export default function HomePage() {
           <RightPane votes={VOTES} />
         </div>
       </div>
+
+      {/* 詳細モーダル */}
+      <NoticeDetailModal notice={selectedNotice} onClose={() => setSelectedNotice(null)} />
+      <PostDetailModal post={selectedPost} comments={comments} onClose={() => setSelectedPost(null)} onComment={handleComment} />
     </div>
   );
 }
