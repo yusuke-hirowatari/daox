@@ -6,25 +6,60 @@ import { Avatar } from "@/components/atoms/Avatar";
 import { DAOXMark } from "@/components/atoms/DAOXLogo";
 import { useAdminRole, type AdminRole } from "./role-context";
 
-const ADMIN_NAV = [
-  { id: "dashboard", href: "/admin",          label: "ダッシュボード",   icon: "▦", badge: 0, superOnly: false },
-  { id: "members",   href: "/admin/members",   label: "メンバー",         icon: "◧", badge: 0, superOnly: false },
-  { id: "mod",       href: "/admin/mod",       label: "モデレーション",   icon: "⚑", badge: 3, superOnly: false },
-  { id: "announce",  href: "/admin/announce",  label: "お知らせ",         icon: "◉", badge: 0, superOnly: false },
-  { id: "tasks",     href: "/admin/tasks",     label: "タスク監視",       icon: "☑", badge: 0, superOnly: false },
-  { id: "tokens",    href: "/admin/tokens",    label: "トークン経済",     icon: "◈", badge: 0, superOnly: true  },
-  { id: "rank",      href: "/admin/rank",      label: "ランク条件",       icon: "★", badge: 0, superOnly: true  },
-  { id: "shops",     href: "/admin/shops",     label: "店舗・QR",         icon: "⚏", badge: 0, superOnly: false },
-  { id: "analytics", href: "/admin/analytics", label: "分析",             icon: "◔", badge: 0, superOnly: false },
-  { id: "operators", href: "/admin/operators", label: "運営者",           icon: "◍", badge: 0, superOnly: true  },
-  { id: "audit",     href: "/admin/audit",     label: "監査ログ",         icon: "⚿", badge: 0, superOnly: true  },
-  { id: "settings",  href: "/admin/settings",  label: "コミュニティ設定", icon: "⚙", badge: 0, superOnly: true  },
-] as const;
+/* ─── Nav item type ─── */
+type NavItem = {
+  id: string;
+  href: string;
+  label: string;
+  icon: string;
+  badge: number;
+  superOnly: boolean;
+};
+
+/* ─── Section type ─── */
+type NavSection = {
+  header: string | null; // null = no header (top-level item)
+  items: NavItem[];
+};
+
+const NAV_SECTIONS: NavSection[] = [
+  {
+    header: null,
+    items: [
+      { id: "home", href: "/admin", label: "ホーム", icon: "\u{1F3E0}", badge: 0, superOnly: false },
+    ],
+  },
+  {
+    header: "コンテンツ管理",
+    items: [
+      { id: "board", href: "/admin/board", label: "掲示板", icon: "\u{1F4CB}", badge: 3, superOnly: false },
+      { id: "posts", href: "/admin/posts", label: "投稿",   icon: "\u{1F4DD}", badge: 0, superOnly: false },
+      { id: "tasks", href: "/admin/tasks", label: "タスク",  icon: "\u2611",    badge: 0, superOnly: false },
+    ],
+  },
+  {
+    header: "コミュニティ運営",
+    items: [
+      { id: "members", href: "/admin/members", label: "メンバー",          icon: "\u{1F465}", badge: 0, superOnly: false },
+      { id: "shops",   href: "/admin/shops",   label: "店舗・チェックイン", icon: "\u{1F3EA}", badge: 0, superOnly: false },
+      { id: "tokens",  href: "/admin/tokens",  label: "トークン・ランク",   icon: "\u{1FA99}", badge: 0, superOnly: true  },
+    ],
+  },
+  {
+    header: "設定",
+    items: [
+      { id: "settings", href: "/admin/settings", label: "設定", icon: "\u2699", badge: 0, superOnly: true },
+    ],
+  },
+];
 
 const ROLE_LABELS: Record<AdminRole, string> = {
   super: "スーパー管理者",
   mod:   "モデレーター",
 };
+
+/* ─── Pending alert count (would come from API in production) ─── */
+const PENDING_ALERT_COUNT = 3;
 
 export function AdminSideNav() {
   const pathname = usePathname();
@@ -52,45 +87,79 @@ export function AdminSideNav() {
         </div>
       </div>
 
-      {/* Nav items */}
-      <nav className="flex flex-col gap-[1px] flex-1 overflow-y-auto">
-        {ADMIN_NAV.map((it) => {
-          const active =
-            it.href === "/admin"
-              ? pathname === "/admin"
-              : pathname.startsWith(it.href);
-          const locked = it.superOnly && !isSuper;
-          return (
-            <Link
-              key={it.id}
-              href={locked ? "#" : it.href}
-              aria-disabled={locked}
-              onClick={locked ? (e) => e.preventDefault() : undefined}
-              className={[
-                "flex items-center gap-2 px-2.5 py-[7px] rounded-md text-[12.5px] transition-colors",
-                active
-                  ? "bg-white text-[#1a1a1a] font-semibold border border-[#dedee5]"
-                  : locked
-                  ? "text-[#c8c8d0] font-medium border border-transparent cursor-default"
-                  : "text-[#525261] font-medium border border-transparent hover:bg-white/60",
-              ].join(" ")}
-            >
-              <span className="w-4 flex-none text-center text-[12px]">
-                {it.icon}
-              </span>
-              <span className="flex-1 truncate">{it.label}</span>
-              {it.badge > 0 && !locked ? (
-                <span className="flex-none text-[9px] font-bold text-white bg-[#6666ff] rounded-[9px] px-[6px] py-[1px] leading-none">
-                  {it.badge}
-                </span>
-              ) : null}
-              {locked && (
-                <span className="flex-none text-[9px] text-[#c8c8d0]">🔒</span>
-              )}
-            </Link>
-          );
-        })}
+      {/* Nav sections */}
+      <nav className="flex flex-col flex-1 overflow-y-auto">
+        {NAV_SECTIONS.map((section, si) => (
+          <div key={si}>
+            {/* Section header */}
+            {section.header && (
+              <div className="text-[10px] font-semibold text-[#9a9aa0] uppercase tracking-wider px-2.5 pt-3 pb-1">
+                {section.header}
+              </div>
+            )}
+
+            {/* Section items */}
+            <div className="flex flex-col gap-[1px]">
+              {section.items.map((it) => {
+                const active =
+                  it.href === "/admin"
+                    ? pathname === "/admin"
+                    : pathname.startsWith(it.href);
+                const locked = it.superOnly && !isSuper;
+                return (
+                  <Link
+                    key={it.id}
+                    href={locked ? "#" : it.href}
+                    aria-disabled={locked}
+                    onClick={locked ? (e) => e.preventDefault() : undefined}
+                    className={[
+                      "flex items-center gap-2 px-2.5 py-[7px] rounded-md text-[12.5px] transition-colors",
+                      active
+                        ? "bg-white text-[#1a1a1a] font-semibold border border-[#dedee5]"
+                        : locked
+                        ? "text-[#c8c8d0] font-medium border border-transparent cursor-default"
+                        : "text-[#525261] font-medium border border-transparent hover:bg-white/60",
+                    ].join(" ")}
+                  >
+                    <span className="w-4 flex-none text-center text-[12px]">
+                      {it.icon}
+                    </span>
+                    <span className="flex-1 truncate">{it.label}</span>
+                    {it.badge > 0 && !locked ? (
+                      <span className="flex-none text-[9px] font-bold text-white bg-[#6666ff] rounded-[9px] px-[6px] py-[1px] leading-none">
+                        {it.badge}
+                      </span>
+                    ) : null}
+                    {locked && (
+                      <span className="flex-none text-[9px] text-[#c8c8d0]">🔒</span>
+                    )}
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        ))}
       </nav>
+
+      {/* Alert section: 要対応 */}
+      {PENDING_ALERT_COUNT > 0 && (
+        <Link
+          href="/admin/board"
+          className="flex-none mt-3 flex items-center gap-2 px-2.5 py-2 rounded-lg transition-colors"
+          style={{
+            background: "#f0f0ff",
+            border: "1px solid #6666ff",
+          }}
+        >
+          <span className="text-[13px] flex-none">🔔</span>
+          <span className="flex-1 text-[12px] font-semibold text-[#3a3a5c]">
+            要対応
+          </span>
+          <span className="flex-none text-[10px] font-bold text-white bg-[#6666ff] rounded-[9px] px-[6px] py-[2px] leading-none">
+            {PENDING_ALERT_COUNT}件
+          </span>
+        </Link>
+      )}
 
       {/* User card + role toggle */}
       <div className="mt-3 p-2.5 rounded-lg bg-white border border-[#dedee5] flex-none">

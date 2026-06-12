@@ -1,17 +1,14 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Avatar } from "@/components/atoms/Avatar";
 import { Button } from "@/components/atoms/Button";
 import { StatusPill } from "@/components/atoms/StatusPill";
 import { Divider } from "@/components/atoms/Divider";
 import { TaskPartyRow } from "./PartyRow";
 import { fmtAmount, amountColor, statusVariant, statusLabel } from "./utils";
-import {
-  TASK_TEMPLATES,
-  TASK_TICKETS,
-  getTicketsByTemplateId,
-} from "@/mocks/tasks";
+import { useTaskContext } from "./TaskContext";
 import { getUserById, CURRENT_USER_ID } from "@/mocks/users";
 
 export type DetailContext =
@@ -30,6 +27,7 @@ interface Props {
   onApprove: (ticketId: string) => void;
   onReturn: (ticketId: string) => void;
   onReject: (ticketId: string) => void;
+  onEdit?: (templateId: string) => void;
 }
 
 // ─── Sub-components ──────────────────────────────────────────────────────────
@@ -80,22 +78,22 @@ function DetailBody({
 }: DetailBodyProps) {
   const [openTpl, setOpenTpl] = useState(false);
   const [ownerTab, setOwnerTab] = useState(0);
+  const [showQa, setShowQa] = useState(false);
+  const router = useRouter();
+  const { getTemplateById, getTicketById, getTicketsByTemplate, tickets } = useTaskContext();
 
-  const tmpl = TASK_TEMPLATES.find((t) => t.id === templateId);
+  const tmpl = getTemplateById(templateId);
   if (!tmpl) return null;
 
-  const ticket = ticketId
-    ? TASK_TICKETS.find((t) => t.id === ticketId)
-    : undefined;
+  const ticket = ticketId ? getTicketById(ticketId) : undefined;
 
   const orderer = getUserById(tmpl.ordererId);
   const acceptor = ticket?.acceptedById
     ? getUserById(ticket.acceptedById)
     : undefined;
 
-  // All tickets including returned (for owner view)
-  const allTickets = TASK_TICKETS.filter((t) => t.templateId === templateId);
-  const activeTickets = getTicketsByTemplateId(templateId);
+  const allTickets = tickets.filter((t) => t.templateId === templateId);
+  const activeTickets = getTicketsByTemplate(templateId);
   const qaList = tmpl.qaList ?? [];
 
   const displayAmount = ticket?.amount ?? tmpl.defaultAmount;
@@ -106,7 +104,6 @@ function DetailBody({
   if (context === "owner") {
     return (
       <div className="flex-1 overflow-y-auto">
-        {/* Template header */}
         <div className="px-5 py-3">
           <div className="flex items-center gap-2 mb-1.5">
             <StatusPill status="open" label="公開中" />
@@ -122,19 +119,14 @@ function DetailBody({
             >
               {isUndecided ? "金額未定" : tmpl.defaultAmount}
             </span>
+            {!isUndecided && <span className="text-[11px] text-[#525261]">DAO</span>}
             {!isUndecided && (
-              <span className="text-[11px] text-[#525261]">DAO</span>
-            )}
-            {!isUndecided && (
-              <span className="text-[10px] text-[#9a9aa0] ml-1">
-                (初期値・チケットごとに変更可)
-              </span>
+              <span className="text-[10px] text-[#9a9aa0] ml-1">(初期値・チケットごとに変更可)</span>
             )}
           </div>
         </div>
         <Divider />
 
-        {/* Tabs */}
         <div className="flex-none flex border-b border-[#dedee5] px-3">
           {["チケット一覧", "Q&A"].map((label, i) => {
             const on = i === ownerTab;
@@ -143,17 +135,13 @@ function DetailBody({
                 key={label}
                 onClick={() => setOwnerTab(i)}
                 className={`px-3 py-2.5 text-[12px] font-${on ? "semibold" : "medium"} flex items-center gap-1.5 border-b-2 -mb-px ${
-                  on
-                    ? "text-[#1a1a1a] border-[#1a1a1a]"
-                    : "text-[#9a9aa0] border-transparent"
+                  on ? "text-[#1a1a1a] border-[#1a1a1a]" : "text-[#9a9aa0] border-transparent"
                 }`}
               >
                 {label}
                 <span
                   className={`text-[9.5px] font-bold font-mono px-1.5 py-px rounded-full ${
-                    on
-                      ? "bg-[#1a1a1a] text-white"
-                      : "bg-[#dedee5] text-[#9a9aa0]"
+                    on ? "bg-[#1a1a1a] text-white" : "bg-[#dedee5] text-[#9a9aa0]"
                   }`}
                 >
                   {i === 0 ? allTickets.length : qaList.length}
@@ -165,7 +153,6 @@ function DetailBody({
 
         {ownerTab === 0 ? (
           <>
-            {/* Template fields */}
             <FieldSection label="募集全体の設定" sub="変更は今後の全チケットに反映" />
             <div className="px-5 py-2">
               <div className="text-[10.5px] font-semibold text-[#525261] mb-1">説明</div>
@@ -180,14 +167,10 @@ function DetailBody({
             </div>
             <FieldSection label="チケットごとに設定" sub="各チケットで上書き可・ここは既定値" />
             <div className="px-5">
-              <MetaRow
-                k="金額(既定)"
-                v={isUndecided ? "未定" : `${tmpl.defaultAmount} DAO`}
-              />
+              <MetaRow k="金額(既定)" v={isUndecided ? "未定" : `${tmpl.defaultAmount} DAO`} />
               <MetaRow k="実施希望" v={tmpl.defaultTime} />
             </div>
 
-            {/* Ticket list */}
             <div className="px-4 py-2 bg-[#f1f1f5] border-t border-b border-[#dedee5] flex items-center gap-2 mt-1">
               <span className="text-[11px] font-mono text-[#9a9aa0]">━━ 発行済みチケット</span>
               <span className="text-[9.5px] font-bold font-mono px-1.5 py-px rounded-full bg-[#1a1a1a] text-white">
@@ -246,9 +229,10 @@ function DetailBody({
                 + チケットを追加発行 (残り枠を増やす)
               </div>
             </div>
+
+            <ShareLinkBar templateId={templateId} />
           </>
         ) : (
-          /* Q&A tab */
           <>
             <div className="px-4 py-2.5 bg-[#f2f2ff] border-b border-[#dedee5]">
               <span className="text-[11px] font-bold text-[#6666ff]">このタスクのQ&A</span>
@@ -322,7 +306,6 @@ function DetailBody({
       </div>
       <Divider />
 
-      {/* Party row */}
       <TaskPartyRow
         orderer={orderer?.name ?? "不明"}
         ordererTone={orderer?.tone ?? 0}
@@ -333,19 +316,16 @@ function DetailBody({
       />
       <Divider />
 
-      {/* Description */}
       <div className="px-5 py-2.5">
         <div className="text-[10.5px] font-semibold text-[#525261] mb-1">説明</div>
         <div className="text-[12px] leading-relaxed text-[#1a1a1a]">{tmpl.desc}</div>
       </div>
 
-      {/* Meta */}
       <div className="px-5 pb-2">
         <MetaRow k="実施希望" v={displayTime} />
         <MetaRow k="発行" v={`${orderer?.name ?? "?"} · ${tmpl.createdAt.slice(0, 10)}`} />
       </div>
 
-      {/* Collapsible template info */}
       <div className="px-5 pb-3">
         <button
           onClick={() => setOpenTpl(!openTpl)}
@@ -356,7 +336,7 @@ function DetailBody({
           <span className="ml-auto text-[10px] text-[#9a9aa0] font-mono">
             {tmpl.type === "continue"
               ? "継続"
-              : `${getTicketsByTemplateId(templateId).filter(t => t.status !== "open").length} / ${tmpl.totalSlots}人`}
+              : `${getTicketsByTemplate(templateId).filter(t => t.status !== "open").length} / ${tmpl.totalSlots}人`}
           </span>
         </button>
         {openTpl && (
@@ -375,7 +355,6 @@ function DetailBody({
         )}
       </div>
 
-      {/* Q&A links */}
       <div className="px-5 pb-4">
         <div className="text-[10.5px] font-semibold text-[#525261] mb-2">
           質問
@@ -384,15 +363,90 @@ function DetailBody({
           </span>
         </div>
         <div className="flex gap-2">
-          <button className="flex-1 py-2 border border-[#bbbbc0] rounded-lg text-[11px] text-[#525261] text-center">
+          <button
+            onClick={() => router.push("/dm")}
+            className="flex-1 py-2 border border-[#bbbbc0] rounded-lg text-[11px] text-[#525261] text-center hover:bg-[#f1f1f5] transition-colors"
+          >
             ✉ {isOrdererMe ? "受注者にDM" : "発注主にDM"}
           </button>
-          <button className="flex-1 py-2 border border-[#bbbbc0] rounded-lg text-[11px] text-[#525261] text-center">
+          <button
+            onClick={() => setShowQa((v) => !v)}
+            className={`flex-1 py-2 border rounded-lg text-[11px] text-center transition-colors ${
+              showQa ? "border-[#1a1a1a] bg-[#1a1a1a] text-white" : "border-[#bbbbc0] text-[#525261] hover:bg-[#f1f1f5]"
+            }`}
+          >
             ≡ Q&Aを見る
-            <span className="text-[9.5px] text-[#9a9aa0] ml-1">({qaList.length})</span>
+            <span className={`text-[9.5px] ml-1 ${showQa ? "text-white/60" : "text-[#9a9aa0]"}`}>({qaList.length})</span>
           </button>
         </div>
+        {showQa && (
+          <div className="mt-2 border border-[#dedee5] rounded-lg overflow-hidden">
+            {qaList.length === 0 ? (
+              <div className="px-3 py-4 text-[11px] text-[#9a9aa0] text-center">
+                まだ質問はありません
+              </div>
+            ) : (
+              qaList.map((q) => {
+                const qUser = getUserById(q.userId);
+                return (
+                  <div key={q.id} className="px-3 py-2.5 border-b border-[#f1f1f5] last:border-b-0">
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <span className="text-[10px] font-semibold text-[#525261]">{qUser?.name ?? "?"}</span>
+                      <span className="text-[9px] text-[#9a9aa0]">{q.createdAt}</span>
+                    </div>
+                    <div className="text-[11.5px] text-[#1a1a1a] mb-1">Q: {q.question}</div>
+                    {q.answer ? (
+                      <div className="text-[11.5px] text-[#6666ff]">A: {q.answer}</div>
+                    ) : (
+                      <div className="text-[10.5px] text-[#9a9aa0] italic">未回答</div>
+                    )}
+                  </div>
+                );
+              })
+            )}
+          </div>
+        )}
       </div>
+
+      <ShareLinkBar templateId={templateId} ticketId={ticketId} />
+    </div>
+  );
+}
+
+// ─── Share link bar ──────────────────────────────────────────────────────────
+
+function ShareLinkBar({ templateId, ticketId }: { templateId: string; ticketId?: string }) {
+  const [copied, setCopied] = useState(false);
+
+  const taskUrl = typeof window !== "undefined"
+    ? `${window.location.origin}/tasks?template=${templateId}${ticketId ? `&ticket=${ticketId}` : ""}`
+    : `/tasks?template=${templateId}${ticketId ? `&ticket=${ticketId}` : ""}`;
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(taskUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // fallback
+    }
+  };
+
+  return (
+    <div className="mx-5 mb-3 flex items-center gap-2 px-3 py-2.5 bg-[#f1f1f5] rounded-lg border border-[#dedee5]">
+      <div className="flex-1 min-w-0 text-[10.5px] font-mono text-[#9a9aa0] truncate">
+        {taskUrl}
+      </div>
+      <button
+        onClick={handleCopy}
+        className={`shrink-0 text-[11px] font-semibold px-3 py-1.5 rounded-md transition-colors ${
+          copied
+            ? "bg-[#dfeede] text-[#3d6b3d]"
+            : "bg-[#1a1a1a] text-white hover:bg-[#333]"
+        }`}
+      >
+        {copied ? "コピーしました" : "リンクをコピー"}
+      </button>
     </div>
   );
 }
@@ -402,11 +456,12 @@ function DetailBody({
 function ActionBar({
   context,
   ticketId,
+  templateId,
   onAccept,
   onReport,
   onApprove,
   onReturn,
-  onReject,
+  onEdit,
 }: {
   context: DetailContext;
   ticketId?: string;
@@ -416,8 +471,10 @@ function ActionBar({
   onApprove: (id: string) => void;
   onReturn: (id: string) => void;
   onReject: (id: string) => void;
+  onEdit?: (templateId: string) => void;
 }) {
-  const ticket = ticketId ? TASK_TICKETS.find((t) => t.id === ticketId) : undefined;
+  const { getTicketById } = useTaskContext();
+  const ticket = ticketId ? getTicketById(ticketId) : undefined;
 
   if (context === "browse") {
     return (
@@ -428,6 +485,8 @@ function ActionBar({
   }
 
   if (context === "my_task" && ticketId) {
+    const isDone = ticket?.status === "done" || ticket?.status === "returned";
+    if (isDone) return null;
     return (
       <div className="flex-none px-3.5 py-3.5 border-t border-[#dedee5] flex gap-2">
         <Button variant="ghost" onClick={() => onReturn(ticketId)}>返却する</Button>
@@ -440,7 +499,7 @@ function ActionBar({
     const amt = ticket?.amount;
     return (
       <div className="flex-none px-3.5 py-3.5 border-t border-[#dedee5] flex gap-2">
-        <Button variant="ghost" onClick={() => onReject(ticketId)}>差し戻し</Button>
+        <Button variant="ghost" onClick={() => onReturn(ticketId)}>差し戻し</Button>
         <Button full onClick={() => onApprove(ticketId)}>
           承認 ({amt === "undecided" ? "金額未定" : `${amt} DAO 支払`})
         </Button>
@@ -452,7 +511,7 @@ function ActionBar({
     return (
       <div className="flex-none px-3.5 py-3.5 border-t border-[#dedee5] flex gap-2">
         <Button variant="ghost">募集を中止</Button>
-        <Button full>テンプレを編集</Button>
+        <Button full onClick={() => onEdit?.(templateId)}>テンプレを編集</Button>
       </div>
     );
   }
@@ -472,16 +531,15 @@ export function TaskDetailPanel({
   onApprove,
   onReturn,
   onReject,
+  onEdit,
 }: Props) {
   const title =
     context === "owner" ? "タスク詳細(テンプレ)"
-    : context === "approve_pending" ? "タスク詳細"
     : "タスク詳細";
 
   return (
-    <>
+    <div className="flex flex-col overflow-hidden h-full">
       <ModalHandle />
-      {/* Header */}
       <div className="flex-none flex items-center gap-2.5 px-4 pb-3 border-b border-[#dedee5]">
         <div className="flex-1 min-w-0 text-[14px] font-semibold">{title}</div>
         <button
@@ -509,7 +567,8 @@ export function TaskDetailPanel({
         onApprove={onApprove}
         onReturn={onReturn}
         onReject={onReject}
+        onEdit={onEdit}
       />
-    </>
+    </div>
   );
 }

@@ -172,6 +172,17 @@ export interface BoardPost {
   isUnread?:  boolean;
 }
 
+export interface BoardComment {
+  id:         string;
+  postId:     string;
+  authorId:   string;
+  authorName: string;
+  tone:       number;
+  xp:         number;
+  text:       string;
+  time:       string;
+}
+
 export interface VoteOption {
   label:     string;
   voteCount: number;

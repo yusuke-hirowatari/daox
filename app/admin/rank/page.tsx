@@ -1,20 +1,27 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { Avatar } from "@/components/atoms/Avatar";
 import { AdminBtn, AdminPill, AdminPageShell } from "@/components/admin/atoms";
 
 // ─── Module-level atoms ───────────────────────────────────────────────────
 
 function ConditionRow({
+  id,
   label,
   valueLabel,
   value,
   unit,
+  menuOpen,
+  setMenuOpen,
 }: {
+  id: string;
   label: string;
   valueLabel: string;
   value: number;
   unit: string;
+  menuOpen: string | null;
+  setMenuOpen: (id: string | null) => void;
 }) {
   return (
     <div className="flex items-center gap-3 p-3 border border-[#dedee5] rounded-lg bg-[#f1f1f5] mb-2">
@@ -28,7 +35,30 @@ function ConditionRow({
         <span className="text-[11px] text-[#9a9aa0]">+</span>
       </div>
       <span className="text-[11px] text-[#525261] min-w-[56px]">{unit}</span>
-      <span className="text-[#9a9aa0] cursor-pointer">⋯</span>
+      <div className="relative">
+        <button
+          className="text-[#9a9aa0] cursor-pointer hover:text-[#1a1a1a]"
+          onClick={(e) => { e.stopPropagation(); setMenuOpen(menuOpen === id ? null : id); }}
+        >
+          ⋯
+        </button>
+        {menuOpen === id && (
+          <div className="absolute right-0 top-full mt-1 w-32 bg-white border border-[#dedee5] rounded-lg shadow-lg z-20 py-1">
+            <button
+              className="w-full text-left px-3 py-2 text-[12px] hover:bg-[#f1f1f5]"
+              onClick={() => { alert(`「${label}」の条件を編集します（デモ）`); setMenuOpen(null); }}
+            >
+              編集
+            </button>
+            <button
+              className="w-full text-left px-3 py-2 text-[12px] text-[#6666ff] hover:bg-[#f1f1f5]"
+              onClick={() => { alert(`「${label}」の条件を削除します（デモ）`); setMenuOpen(null); }}
+            >
+              削除
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -38,7 +68,12 @@ function BenefitRow({ icon, text }: { icon: string; text: string }) {
     <div className="flex items-center gap-2 px-2.5 py-2 bg-[#f1f1f5] rounded-md text-[11.5px]">
       <span className="text-[14px] text-[#6666ff]">{icon}</span>
       <span className="flex-1">{text}</span>
-      <span className="text-[10px] text-[#9a9aa0] cursor-pointer">編集</span>
+      <button
+        className="text-[10px] text-[#9a9aa0] cursor-pointer hover:text-[#1a1a1a]"
+        onClick={() => alert("ランク条件の編集画面は今後実装予定です")}
+      >
+        編集
+      </button>
     </div>
   );
 }
@@ -55,6 +90,16 @@ const NEAR_PREMIUM = [
 // ─── Page ─────────────────────────────────────────────────────────────────
 
 export default function AdminRankPage() {
+  const [menuOpen, setMenuOpen] = useState<string | null>(null);
+
+  // Close menu on outside click
+  useEffect(() => {
+    if (!menuOpen) return;
+    const handler = () => setMenuOpen(null);
+    document.addEventListener("click", handler);
+    return () => document.removeEventListener("click", handler);
+  }, [menuOpen]);
+
   return (
     <AdminPageShell
       breadcrumbs="HOME › ランク条件"
@@ -62,8 +107,8 @@ export default function AdminRankPage() {
       sub="ベーシック / プレミアム の判定条件"
       actions={
         <>
-          <AdminBtn variant="outline">プレビュー</AdminBtn>
-          <AdminBtn>保存</AdminBtn>
+          <AdminBtn variant="outline" onClick={() => alert("ランク変更の影響をプレビューします（デモ）")}>プレビュー</AdminBtn>
+          <AdminBtn onClick={() => alert("ランク条件を保存しました（デモ）")}>保存</AdminBtn>
         </>
       }
     >
@@ -102,19 +147,25 @@ export default function AdminRankPage() {
               達成条件 (AND)
             </div>
             <ConditionRow
+              id="cond-checkin"
               label="チェックイン回数"
               valueLabel="今年の累計"
               value={10}
               unit="回以上"
+              menuOpen={menuOpen}
+              setMenuOpen={setMenuOpen}
             />
             <ConditionRow
+              id="cond-duty"
               label="担い手活動の参加"
               valueLabel="今年の累計"
               value={1}
               unit="回以上"
+              menuOpen={menuOpen}
+              setMenuOpen={setMenuOpen}
             />
             <div className="mt-1 mb-4">
-              <AdminBtn variant="ghost" icon="+">条件を追加</AdminBtn>
+              <AdminBtn variant="ghost" icon="+" onClick={() => alert("新しいランク条件の追加画面は今後実装予定です")}>条件を追加</AdminBtn>
             </div>
 
             <div className="flex-1" />

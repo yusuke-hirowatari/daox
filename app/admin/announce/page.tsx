@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import type { ReactNode } from "react";
 import { AdminBtn, AdminPill, AdminTable, AdminPageShell, type ColDef, type PillTone } from "@/components/admin/atoms";
 
@@ -9,6 +9,7 @@ import { AdminBtn, AdminPill, AdminTable, AdminPageShell, type ColDef, type Pill
 type AnnStatus = "公開中" | "予約" | "下書き" | "アーカイブ";
 
 interface Ann {
+  id:     string;
   status: AnnStatus;
   tag:    string;
   title:  string;
@@ -18,11 +19,11 @@ interface Ann {
 }
 
 const ITEMS: Ann[] = [
-  { status: "公開中",     tag: "重要",     title: "今週の市役所窓口の臨時休業について",   date: "2026/05/20", read: "248/312", author: "運営事務局" },
-  { status: "公開中",     tag: "お知らせ", title: "夏祭り 出店者募集のお知らせ",           date: "2026/05/19", read: "198/312", author: "運営事務局" },
-  { status: "予約",       tag: "イベント", title: "6月の定例会のお知らせ",                 date: "2026/05/27", read: "—",       author: "運営事務局" },
-  { status: "下書き",     tag: "お知らせ", title: "ロゴリニューアルのご報告",               date: "2026/05/24", read: "—",       author: "田中 太郎" },
-  { status: "アーカイブ", tag: "イベント", title: "5月のクリーン作戦のご案内",               date: "2026/04/30", read: "301/312", author: "運営事務局" },
+  { id: "a1", status: "公開中",     tag: "重要",     title: "今週の市役所窓口の臨時休業について",   date: "2026/05/20", read: "248/312", author: "運営事務局" },
+  { id: "a2", status: "公開中",     tag: "お知らせ", title: "夏祭り 出店者募集のお知らせ",           date: "2026/05/19", read: "198/312", author: "運営事務局" },
+  { id: "a3", status: "予約",       tag: "イベント", title: "6月の定例会のお知らせ",                 date: "2026/05/27", read: "—",       author: "運営事務局" },
+  { id: "a4", status: "下書き",     tag: "お知らせ", title: "ロゴリニューアルのご報告",               date: "2026/05/24", read: "—",       author: "田中 太郎" },
+  { id: "a5", status: "アーカイブ", tag: "イベント", title: "5月のクリーン作戦のご案内",               date: "2026/04/30", read: "301/312", author: "運営事務局" },
 ];
 
 const FILTER_TABS = [
@@ -50,7 +51,11 @@ const COLS: ColDef[] = [
   { key: "act",    label: "",           flex: 0.4, align: "right" },
 ];
 
-function buildRows(items: Ann[]): Record<string, ReactNode>[] {
+function buildRows(
+  items: Ann[],
+  menuOpen: string | null,
+  setMenuOpen: (id: string | null) => void,
+): Record<string, ReactNode>[] {
   return items.map((i) => ({
     status: <AdminPill tone={STATUS_TONE[i.status]}>{i.status}</AdminPill>,
     tag:    <AdminPill tone={i.tag === "重要" ? "warn" : "default"}>{i.tag}</AdminPill>,
@@ -58,7 +63,45 @@ function buildRows(items: Ann[]): Record<string, ReactNode>[] {
     date:   i.date,
     read:   i.read,
     author: i.author,
-    act:    <span className="text-[#9a9aa0] cursor-pointer hover:text-[#1a1a1a]">⋯</span>,
+    act: (
+      <div className="relative">
+        <button
+          className="text-[#9a9aa0] cursor-pointer hover:text-[#1a1a1a]"
+          onClick={(e) => { e.stopPropagation(); setMenuOpen(menuOpen === i.id ? null : i.id); }}
+        >
+          ⋯
+        </button>
+        {menuOpen === i.id && (
+          <div className="absolute right-0 top-full mt-1 w-40 bg-white border border-[#dedee5] rounded-lg shadow-lg z-20 py-1">
+            <button
+              className="w-full text-left px-3 py-2 text-[12px] hover:bg-[#f1f1f5]"
+              onClick={() => { alert(`「${i.title}」を編集します（デモ）`); setMenuOpen(null); }}
+            >
+              編集
+            </button>
+            <button
+              className="w-full text-left px-3 py-2 text-[12px] hover:bg-[#f1f1f5]"
+              onClick={() => { alert(`「${i.title}」を複製します（デモ）`); setMenuOpen(null); }}
+            >
+              複製
+            </button>
+            <button
+              className="w-full text-left px-3 py-2 text-[12px] text-[#6666ff] hover:bg-[#f1f1f5]"
+              onClick={() => {
+                if (i.status === "公開中") {
+                  alert(`「${i.title}」の公開を停止します（デモ）`);
+                } else {
+                  alert(`「${i.title}」をアーカイブします（デモ）`);
+                }
+                setMenuOpen(null);
+              }}
+            >
+              {i.status === "公開中" ? "公開を停止" : "アーカイブ"}
+            </button>
+          </div>
+        )}
+      </div>
+    ),
   }));
 }
 
@@ -66,14 +109,26 @@ function buildRows(items: Ann[]): Record<string, ReactNode>[] {
 
 export default function AdminAnnouncePage() {
   const [filterIdx, setFilterIdx] = useState(0);
-  const rows = buildRows(ITEMS);
+  const [menuOpen, setMenuOpen] = useState<string | null>(null);
+  const [sortAsc, setSortAsc] = useState(true);
+
+  // Close menu on outside click
+  useEffect(() => {
+    if (!menuOpen) return;
+    const handler = () => setMenuOpen(null);
+    document.addEventListener("click", handler);
+    return () => document.removeEventListener("click", handler);
+  }, [menuOpen]);
+
+  const sortedItems = sortAsc ? ITEMS : [...ITEMS].reverse();
+  const rows = buildRows(sortedItems, menuOpen, setMenuOpen);
 
   return (
     <AdminPageShell
       breadcrumbs="HOME › お知らせ"
       title="お知らせ"
       sub="公開中 2件 ・ 下書き 1件 ・ 予約 1件"
-      actions={<AdminBtn icon="+">新しいお知らせ</AdminBtn>}
+      actions={<AdminBtn icon="+" onClick={() => alert("お知らせ作成画面は今後実装予定です")}>新しいお知らせ</AdminBtn>}
     >
       <div className="p-5 flex flex-col gap-3">
         {/* Filter chips */}
@@ -93,8 +148,11 @@ export default function AdminAnnouncePage() {
             </button>
           ))}
           <div className="flex-1" />
-          <button className="px-3 py-[5px] rounded-[999px] text-[11.5px] font-medium border border-[#dedee5] bg-white text-[#525261] hover:border-[#9a9aa0] whitespace-nowrap">
-            📅 配信日順
+          <button
+            className="px-3 py-[5px] rounded-[999px] text-[11.5px] font-medium border border-[#dedee5] bg-white text-[#525261] hover:border-[#9a9aa0] whitespace-nowrap cursor-pointer"
+            onClick={() => setSortAsc((prev) => !prev)}
+          >
+            {sortAsc ? "📅 配信日順 ↓" : "📅 配信日順 ↑"}
           </button>
         </div>
 

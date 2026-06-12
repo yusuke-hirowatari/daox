@@ -178,6 +178,10 @@ export default function NotificationsPage() {
     spTab,
   );
 
+  const [showSettings, setShowSettings] = useState(false);
+  const [notifSettings, setNotifSettings] = useState({
+    token: true, task: true, dm: true, vote: true, rank: true, system: true,
+  });
   const hasUnread = notifications.some((n) => n.isUnread);
 
   const markAllRead = () =>
@@ -262,10 +266,50 @@ export default function NotificationsPage() {
           >
             すべて既読にする
           </button>
-          <button className="text-[12px] text-[#7a7a84] font-medium px-3 py-1.5 rounded-lg hover:bg-[#f1f1f5] transition-colors">
+          <button
+            onClick={() => setShowSettings((v) => !v)}
+            className={`text-[12px] font-medium px-3 py-1.5 rounded-lg transition-colors ${
+              showSettings ? "bg-[#1a1a1a] text-white" : "text-[#7a7a84] hover:bg-[#f1f1f5]"
+            }`}
+          >
             ⚙ 通知設定
           </button>
         </div>
+
+        {/* PC Notification Settings dropdown */}
+        {showSettings && (
+          <div className="flex-none border-b border-[#dedee5] bg-[#f9f9fb] px-6 py-3">
+            <div className="max-w-[720px] mx-auto">
+              <div className="text-[11px] font-bold text-[#9a9aa0] mb-2">通知カテゴリ</div>
+              <div className="flex flex-wrap gap-2">
+                {(
+                  [
+                    ["token", "トークン"],
+                    ["task", "タスク"],
+                    ["dm", "DM"],
+                    ["vote", "投票"],
+                    ["rank", "ランク"],
+                    ["system", "システム"],
+                  ] as const
+                ).map(([key, label]) => (
+                  <button
+                    key={key}
+                    onClick={() =>
+                      setNotifSettings((s) => ({ ...s, [key]: !s[key] }))
+                    }
+                    className={`text-[11px] font-semibold px-3 py-1.5 rounded-full border transition-colors ${
+                      notifSettings[key]
+                        ? "bg-[#1a1a1a] text-white border-[#1a1a1a]"
+                        : "bg-white text-[#9a9aa0] border-[#dedee5]"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* PC Content */}
         <div className="flex-1 overflow-y-auto">

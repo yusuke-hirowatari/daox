@@ -71,8 +71,11 @@ function KPICard({ label, value, delta, spark }: {
 
 // ─── Page ─────────────────────────────────────────────────────────────────
 
+const PERIOD_OPTIONS = ["過去7日", "過去30日", "過去90日", "全期間"] as const;
+
 export default function AdminAnalyticsPage() {
   const [chartTab, setChartTab] = useState(0);
+  const [periodIdx, setPeriodIdx] = useState(1); // default "過去30日"
 
   const barData = DAU_30.map((v, i) => ({
     k: i % 5 === 0 ? `${i + 1}` : "",
@@ -86,8 +89,20 @@ export default function AdminAnalyticsPage() {
       sub="コミュニティのエンゲージメントとグロース"
       actions={
         <>
-          <AdminBtn variant="outline" icon="🕒">期間: 過去30日</AdminBtn>
-          <AdminBtn variant="outline" icon="↓">レポート出力</AdminBtn>
+          <AdminBtn
+            variant="outline"
+            icon="🕒"
+            onClick={() => setPeriodIdx((prev) => (prev + 1) % PERIOD_OPTIONS.length)}
+          >
+            期間: {PERIOD_OPTIONS[periodIdx]}
+          </AdminBtn>
+          <AdminBtn
+            variant="outline"
+            icon="↓"
+            onClick={() => alert("分析レポートのダウンロードを開始しました（デモ）")}
+          >
+            レポート出力
+          </AdminBtn>
         </>
       }
     >

@@ -11,19 +11,13 @@ import { TaskReportPage } from "@/components/tasks/TaskReportPage";
 import { TaskApprovePage } from "@/components/tasks/TaskApprovePage";
 import { ReturnModal, RejectModal } from "@/components/tasks/TaskModals";
 import { fmtAmount, amountColor, statusVariant, statusLabel } from "@/components/tasks/utils";
-import {
-  TASK_TEMPLATES,
-  TASK_TICKETS,
-  getTicketsByTemplateId,
-  getMyActiveTickets,
-  getMyOrderedTemplates,
-} from "@/mocks/tasks";
+import { TaskProvider, useTaskContext, type CreateTemplateData } from "@/components/tasks/TaskContext";
 import { getUserById, CURRENT_USER_ID } from "@/mocks/users";
 import type { TaskTemplate, TaskTicket } from "@/mocks/types";
 
 // ─── State types ──────────────────────────────────────────────────────────────
 
-type SubTab = 0 | 1 | 2; // 0=募集中 / 1=マイタスク / 2=タスク発注
+type SubTab = 0 | 1 | 2;
 
 type DetailState = {
   templateId: string;
@@ -39,12 +33,12 @@ type ModalState =
 type PageMode =
   | { type: "list" }
   | { type: "create" }
+  | { type: "edit"; templateId: string }
   | { type: "report"; ticketId: string }
   | { type: "approve"; ticketId: string };
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-/** タスクカード (A 募集中 / B マイタスク) */
 function TaskCard({
   tmpl,
   ticket,
@@ -54,10 +48,10 @@ function TaskCard({
   ticket?: TaskTicket;
   onOpen: () => void;
 }) {
+  const { getTicketsByTemplate } = useTaskContext();
   const orderer = getUserById(tmpl.ordererId);
-  const activeTickets = getTicketsByTemplateId(tmpl.id);
+  const activeTickets = getTicketsByTemplate(tmpl.id);
   const isContinue = tmpl.type === "continue";
-
   const displayAmount = ticket?.amount ?? tmpl.defaultAmount;
 
   return (
@@ -65,14 +59,9 @@ function TaskCard({
       className="px-4 py-3.5 border-b border-[#dedee5] cursor-pointer hover:bg-[#fafafa] transition-colors"
       onClick={onOpen}
     >
-      {/* Row 1 */}
       <div className="flex items-center gap-2 mb-2">
-        {orderer && (
-          <Avatar size={24} label={orderer.initial} tone={orderer.tone} />
-        )}
-        <span className="text-[11.5px] font-semibold truncate">
-          {orderer?.name ?? "不明"}
-        </span>
+        {orderer && <Avatar size={24} label={orderer.initial} tone={orderer.tone} />}
+        <span className="text-[11.5px] font-semibold truncate">{orderer?.name ?? "不明"}</span>
         {isContinue ? (
           <StatusPill status="continue" label="継続" />
         ) : (
@@ -88,11 +77,8 @@ function TaskCard({
           {fmtAmount(displayAmount)}
         </span>
       </div>
-      {/* Title */}
       <div className="text-[14px] font-bold leading-snug mb-1">{tmpl.title}</div>
-      {/* Desc */}
       <div className="text-[11.5px] text-[#525261] line-clamp-1 mb-1.5">{tmpl.desc}</div>
-      {/* Time */}
       <div className="flex items-center gap-1 text-[10.5px] text-[#9a9aa0] font-mono">
         <span className="text-[11px]">⏱</span>
         {ticket?.time ?? tmpl.defaultTime}
@@ -101,7 +87,6 @@ function TaskCard({
   );
 }
 
-/** マイタスクカード (B) — 受注中 + 完了済み */
 function MyTaskCard({
   ticket,
   tmpl,
@@ -122,22 +107,16 @@ function MyTaskCard({
       onClick={onOpen}
     >
       <div className="flex items-start gap-2 mb-1.5">
-        {orderer && (
-          <Avatar size={22} label={orderer.initial} tone={orderer.tone} />
-        )}
+        {orderer && <Avatar size={22} label={orderer.initial} tone={orderer.tone} />}
         <span className="text-[11.5px] font-semibold pt-[2px] truncate">{orderer?.name ?? "不明"}</span>
-        {tmpl.type === "continue" && (
-          <StatusPill status="continue" label="継続" />
-        )}
+        {tmpl.type === "continue" && <StatusPill status="continue" label="継続" />}
         <div className="flex-1" />
         {isDone && ticket.confirmedAmount !== undefined ? (
           <div className="text-right">
             <div className="text-[9.5px] font-mono text-[#9a9aa0] line-through leading-none">
               元 {ticket.amount === "undecided" ? "未定" : `${ticket.amount}`}
             </div>
-            <div
-              className={`text-[13.5px] font-bold font-mono mt-0.5 ${ticket.confirmedAmount > 0 ? "text-[#6666ff]" : "text-[#1a1a1a]"}`}
-            >
+            <div className={`text-[13.5px] font-bold font-mono mt-0.5 ${ticket.confirmedAmount > 0 ? "text-[#6666ff]" : "text-[#1a1a1a]"}`}>
               {ticket.confirmedAmount > 0 ? "+" : ""}{ticket.confirmedAmount} DAO
             </div>
           </div>
@@ -152,9 +131,7 @@ function MyTaskCard({
       </div>
       <div className="text-[13px] font-semibold mb-1.5 flex items-center gap-1.5">
         {tmpl.title}
-        <span className="text-[10.5px] font-mono text-[#9a9aa0]">
-          #{ticket.id.split("-").pop()}
-        </span>
+        <span className="text-[10.5px] font-mono text-[#9a9aa0]">#{ticket.id.split("-").pop()}</span>
       </div>
       <div className="flex items-center gap-2">
         <span className="text-[10.5px] font-mono text-[#9a9aa0] flex-1">⏱ {ticket.time}</span>
@@ -164,10 +141,7 @@ function MyTaskCard({
           <Button
             size="sm"
             variant="outline"
-            onClick={(e) => {
-              e.stopPropagation();
-              onOpen();
-            }}
+            onClick={(e) => { e.stopPropagation(); onOpen(); }}
           >
             実施報告
           </Button>
@@ -177,21 +151,24 @@ function MyTaskCard({
   );
 }
 
-/** タスク発注タブ (F) */
 function OrdererTab({
   onOpenTemplate,
   onOpenPendingTicket,
+  onEditTemplate,
 }: {
   onOpenTemplate: (templateId: string) => void;
   onOpenPendingTicket: (templateId: string, ticketId: string) => void;
+  onEditTemplate: (templateId: string) => void;
 }) {
+  const { templates, tickets, getTicketsByTemplate, getMyOrderedTemplates } = useTaskContext();
   const myTemplates = getMyOrderedTemplates();
-  const pendingTickets = TASK_TICKETS.filter(
+
+  const pendingTickets = tickets.filter(
     (t) =>
       myTemplates.some((tmpl) => tmpl.id === t.templateId) &&
       t.status === "pending_approval"
   );
-  const doneTickets = TASK_TICKETS.filter(
+  const doneTickets = tickets.filter(
     (t) =>
       myTemplates.some((tmpl) => tmpl.id === t.templateId) &&
       t.status === "done" &&
@@ -200,7 +177,6 @@ function OrdererTab({
 
   return (
     <div className="flex-1 overflow-y-auto">
-      {/* 承認待ちセクション */}
       {pendingTickets.length > 0 && (
         <>
           <div className="flex items-center gap-2 px-4 py-3.5 bg-[#f1f1f5] border-b border-[#dedee5]">
@@ -210,7 +186,7 @@ function OrdererTab({
             </span>
           </div>
           {pendingTickets.map((tk) => {
-            const tmpl = TASK_TEMPLATES.find((t) => t.id === tk.templateId)!;
+            const tmpl = templates.find((t) => t.id === tk.templateId)!;
             const acceptor = tk.acceptedById ? getUserById(tk.acceptedById) : null;
             return (
               <div
@@ -222,14 +198,10 @@ function OrdererTab({
                   <span className="text-[9.5px] font-mono text-[#9a9aa0] px-1.5 py-px bg-[#f1f1f5] rounded">
                     #{tk.id.split("-").pop()}
                   </span>
-                  <span className="text-[11px] font-semibold text-[#525261] flex-1 truncate">
-                    {tmpl.title}
-                  </span>
+                  <span className="text-[11px] font-semibold text-[#525261] flex-1 truncate">{tmpl.title}</span>
                 </div>
                 <div className="flex items-center gap-2.5">
-                  {acceptor && (
-                    <Avatar size={28} label={acceptor.initial} tone={acceptor.tone} />
-                  )}
+                  {acceptor && <Avatar size={28} label={acceptor.initial} tone={acceptor.tone} />}
                   <div className="flex-1 min-w-0">
                     <div className="text-[11.5px] font-semibold">{acceptor?.name ?? "不明"}さん</div>
                     <div className="text-[10px] text-[#9a9aa0] mt-0.5">
@@ -244,10 +216,7 @@ function OrdererTab({
                   </span>
                   <Button
                     size="sm"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onOpenPendingTicket(tmpl.id, tk.id);
-                    }}
+                    onClick={(e) => { e.stopPropagation(); onOpenPendingTicket(tmpl.id, tk.id); }}
                   >
                     承認 ({fmtAmount(tk.amount)})
                   </Button>
@@ -258,14 +227,13 @@ function OrdererTab({
         </>
       )}
 
-      {/* 募集中セクション */}
       {myTemplates.length > 0 && (
         <>
           <div className="px-4 py-3.5 bg-[#f1f1f5] border-b border-[#dedee5]">
             <span className="text-[11px] font-mono text-[#525261]">━━ 募集中 (自分が公開)</span>
           </div>
           {myTemplates.map((tmpl) => {
-            const active = getTicketsByTemplateId(tmpl.id);
+            const active = getTicketsByTemplate(tmpl.id);
             return (
               <div
                 key={tmpl.id}
@@ -285,7 +253,7 @@ function OrdererTab({
                   <span className="text-[10.5px] text-[#9a9aa0] flex-1">
                     応募 {active.filter((t) => t.status !== "open").length}/{tmpl.totalSlots}人 · ⏱ {tmpl.deadline}
                   </span>
-                  <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); }}>
+                  <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); onEditTemplate(tmpl.id); }}>
                     編集
                   </Button>
                 </div>
@@ -295,25 +263,19 @@ function OrdererTab({
         </>
       )}
 
-      {/* 完了セクション */}
       {doneTickets.length > 0 && (
         <>
           <div className="px-4 py-3.5 bg-[#f1f1f5] border-b border-[#dedee5]">
             <span className="text-[11px] font-mono text-[#525261]">━━ 完了</span>
           </div>
           {doneTickets.map((tk) => {
-            const tmpl = TASK_TEMPLATES.find((t) => t.id === tk.templateId)!;
+            const tmpl = templates.find((t) => t.id === tk.templateId)!;
             const acceptor = tk.acceptedById ? getUserById(tk.acceptedById) : null;
             return (
-              <div
-                key={tk.id}
-                className="flex items-center gap-2.5 px-4 py-2.5 border-b border-[#dedee5]"
-              >
+              <div key={tk.id} className="flex items-center gap-2.5 px-4 py-2.5 border-b border-[#dedee5]">
                 <div className="flex-1 min-w-0">
                   <div className="text-[12px] font-medium truncate">{tmpl.title}</div>
-                  <div className="text-[10.5px] text-[#9a9aa0] mt-0.5">
-                    → {acceptor?.name ?? "不明"}さんへ支払い
-                  </div>
+                  <div className="text-[10.5px] text-[#9a9aa0] mt-0.5">→ {acceptor?.name ?? "不明"}さんへ支払い</div>
                 </div>
                 <span className="text-[12.5px] font-bold font-mono text-[#525261] whitespace-nowrap">
                   −{tk.confirmedAmount ?? 0} DAO
@@ -327,27 +289,22 @@ function OrdererTab({
   );
 }
 
-// ─── PC List Pane ─────────────────────────────────────────────────────────────
+// ─── PC Sub-components ────────────────────────────────────────────────────────
 
 const PC_CATEGORIES = ["すべて", "清掃", "配布", "デザイン", "飲食"] as const;
 type PcCategory = (typeof PC_CATEGORIES)[number];
 
 function PcSubNav({
-  subtab,
-  onChangeTab,
-  category,
-  onCategoryChange,
+  subtab, onChangeTab, category, onCategoryChange,
 }: {
-  subtab: SubTab;
-  onChangeTab: (t: SubTab) => void;
-  category: PcCategory;
-  onCategoryChange: (c: PcCategory) => void;
+  subtab: SubTab; onChangeTab: (t: SubTab) => void;
+  category: PcCategory; onCategoryChange: (c: PcCategory) => void;
 }) {
+  const { templates, tickets, getTicketsByTemplate, getMyActiveTickets, getMyOrderedTemplates } = useTaskContext();
   const tabs = [
-    { label: "募集中",     count: TASK_TICKETS.filter((t) => t.status === "open" && t.acceptedById !== CURRENT_USER_ID).length },
-    { label: "マイタスク", count: getMyActiveTickets().length + TASK_TICKETS.filter((t) => t.acceptedById === CURRENT_USER_ID && t.status === "done").length },
+    { label: "募集中",     count: templates.filter((tmpl) => getTicketsByTemplate(tmpl.id).some((t) => t.status === "open")).length },
+    { label: "マイタスク", count: getMyActiveTickets().length + tickets.filter((t) => t.acceptedById === CURRENT_USER_ID && t.status === "done").length },
     { label: "タスク発注", count: getMyOrderedTemplates().length },
-    { label: "完了",       count: TASK_TICKETS.filter((t) => t.acceptedById === CURRENT_USER_ID && t.status === "done").length },
   ];
 
   return (
@@ -359,17 +316,11 @@ function PcSubNav({
             key={t.label}
             onClick={() => onChangeTab(i as SubTab)}
             className={`flex items-center px-3 py-2 rounded-md text-[12px] font-${on ? "semibold" : "medium"} transition-colors ${
-              on
-                ? "bg-white text-[#1a1a1a] border border-[#dedee5] shadow-sm"
-                : "text-[#525261] hover:bg-white/60"
+              on ? "bg-white text-[#1a1a1a] border border-[#dedee5] shadow-sm" : "text-[#525261] hover:bg-white/60"
             }`}
           >
             <span className="flex-1">{t.label}</span>
-            <span
-              className={`text-[10px] font-bold font-mono px-1.5 py-px rounded-full ${
-                on ? "bg-[#1a1a1a] text-white" : "bg-[#dedee5] text-[#9a9aa0]"
-              }`}
-            >
+            <span className={`text-[10px] font-bold font-mono px-1.5 py-px rounded-full ${on ? "bg-[#1a1a1a] text-white" : "bg-[#dedee5] text-[#9a9aa0]"}`}>
               {t.count}
             </span>
           </button>
@@ -395,30 +346,25 @@ function PcSubNav({
   );
 }
 
-/** PC center list */
 function PcTaskList({
-  subtab,
-  selectedId,
-  onSelect,
-  category = "すべて",
+  subtab, selectedId, onSelect, category = "すべて",
 }: {
-  subtab: SubTab;
-  selectedId: string | null;
+  subtab: SubTab; selectedId: string | null;
   onSelect: (templateId: string, ticketId?: string, context?: DetailContext) => void;
   category?: PcCategory;
 }) {
+  const { templates, tickets, getTicketsByTemplate, getMyActiveTickets } = useTaskContext();
   const matchesCategory = (tmpl: { tags?: string[] }) =>
     category === "すべて" || (tmpl.tags ?? []).includes(category);
 
   if (subtab === 0) {
-    const openTemplates = TASK_TEMPLATES.filter((tmpl) => {
-      const tickets = getTicketsByTemplateId(tmpl.id);
-      return tickets.some((t) => t.status === "open") && matchesCategory(tmpl);
-    });
+    const openTemplates = templates.filter((tmpl) =>
+      getTicketsByTemplate(tmpl.id).some((t) => t.status === "open") && matchesCategory(tmpl)
+    );
     return (
       <div className="w-[300px] flex-none border-r border-[#dedee5] overflow-y-auto">
         {openTemplates.map((tmpl) => {
-          const openTicket = getTicketsByTemplateId(tmpl.id).find((t) => t.status === "open");
+          const openTicket = getTicketsByTemplate(tmpl.id).find((t) => t.status === "open");
           const orderer = getUserById(tmpl.ordererId);
           const sel = selectedId === tmpl.id;
           return (
@@ -426,24 +372,19 @@ function PcTaskList({
               key={tmpl.id}
               onClick={() => onSelect(tmpl.id, openTicket?.id, "browse")}
               className={`px-4 py-3 border-b border-[#dedee5] cursor-pointer transition-colors border-l-[3px] ${
-                sel
-                  ? "bg-[#eeeeff] border-l-[#6666ff]"
-                  : "border-l-transparent hover:bg-[#fafafa]"
+                sel ? "bg-[#eeeeff] border-l-[#6666ff]" : "border-l-transparent hover:bg-[#fafafa]"
               }`}
             >
               <div className="flex items-center gap-2 mb-1">
                 {orderer && <Avatar size={20} label={orderer.initial} tone={orderer.tone} />}
                 <span className="text-[11.5px] font-semibold truncate">{orderer?.name ?? "不明"}</span>
                 <span className="text-[10px] font-mono text-[#9a9aa0] ml-auto">
-                  {tmpl.type === "continue" ? "継続" : `${getTicketsByTemplateId(tmpl.id).filter((t) => t.status !== "open").length}/${tmpl.totalSlots}人`}
+                  {tmpl.type === "continue" ? "継続" : `${getTicketsByTemplate(tmpl.id).filter((t) => t.status !== "open").length}/${tmpl.totalSlots}人`}
                 </span>
               </div>
               <div className="text-[13px] font-semibold mb-1 truncate">{tmpl.title}</div>
               <div className="flex items-center gap-1.5">
-                <span
-                  className="text-[13px] font-bold font-mono"
-                  style={{ color: amountColor(tmpl.defaultAmount) }}
-                >
+                <span className="text-[13px] font-bold font-mono" style={{ color: amountColor(tmpl.defaultAmount) }}>
                   {fmtAmount(tmpl.defaultAmount)}
                 </span>
                 <span className="text-[10.5px] text-[#9a9aa0] font-mono ml-auto">⏱ {tmpl.defaultTime}</span>
@@ -457,9 +398,9 @@ function PcTaskList({
 
   if (subtab === 1) {
     const myTickets = getMyActiveTickets();
-    const doneTickets = TASK_TICKETS.filter(
-      (t) => t.acceptedById === CURRENT_USER_ID && t.status === "done"
-    ).map((t) => ({ ...t, template: TASK_TEMPLATES.find((tmpl) => tmpl.id === t.templateId)! }));
+    const doneTickets = tickets
+      .filter((t) => t.acceptedById === CURRENT_USER_ID && t.status === "done")
+      .map((t) => ({ ...t, template: templates.find((tmpl) => tmpl.id === t.templateId)! }));
     const allTickets = [...myTickets, ...doneTickets];
     return (
       <div className="w-[300px] flex-none border-r border-[#dedee5] overflow-y-auto">
@@ -473,9 +414,7 @@ function PcTaskList({
               key={ticket.id}
               onClick={() => onSelect(tmpl.id, ticket.id, "my_task")}
               className={`px-4 py-3 border-b border-[#dedee5] cursor-pointer transition-colors border-l-[3px] ${
-                sel
-                  ? "bg-[#eeeeff] border-l-[#6666ff]"
-                  : "border-l-transparent hover:bg-[#fafafa]"
+                sel ? "bg-[#eeeeff] border-l-[#6666ff]" : "border-l-transparent hover:bg-[#fafafa]"
               }`}
             >
               <div className="flex items-center gap-2 mb-1">
@@ -495,39 +434,31 @@ function PcTaskList({
     );
   }
 
-  // subtab 2 or 3 — no center list needed on PC
   return <div className="w-[300px] flex-none border-r border-[#dedee5]" />;
 }
 
-// ─── Main Page ────────────────────────────────────────────────────────────────
+// ─── Main Page (inner, within provider) ──────────────────────────────────────
 
-export default function TasksPage() {
+function TasksPageInner() {
+  const ctx = useTaskContext();
   const [subtab, setSubtab] = useState<SubTab>(0);
   const [detail, setDetail] = useState<DetailState>(null);
   const [modal, setModal] = useState<ModalState>(null);
   const [pageMode, setPageMode] = useState<PageMode>({ type: "list" });
 
-  // PC selected state
   const [pcSelectedId, setPcSelectedId] = useState<string | null>(null);
   const [pcDetail, setPcDetail] = useState<DetailState>(null);
   const [pcCategory, setPcCategory] = useState<PcCategory>("すべて");
 
-  // ── handlers ──────────────────────────────────────────────────────────────
-
-  const openDetail = (
-    templateId: string,
-    ticketId: string | undefined,
-    context: DetailContext
-  ) => {
+  // ── handlers ──
+  const openDetail = (templateId: string, ticketId: string | undefined, context: DetailContext) =>
     setDetail({ templateId, ticketId, context });
-  };
-
   const closeDetail = () => setDetail(null);
 
   const handleAccept = () => {
+    if (!detail?.ticketId) return;
+    ctx.acceptTicket(detail.ticketId);
     closeDetail();
-    // In a real app: create a new ticket for current user
-    alert("受注しました！（モック）");
   };
 
   const handleReport = (ticketId: string) => {
@@ -541,75 +472,77 @@ export default function TasksPage() {
   };
 
   const handleApproveSubmit = (amount: number) => {
+    if (pageMode.type === "approve") {
+      ctx.approveTicket(pageMode.ticketId, amount);
+    }
     setPageMode({ type: "list" });
-    alert(`承認しました！${amount} DAO 支払（モック）`);
   };
 
-  const handleReturn = (ticketId: string) => {
-    setModal({ type: "return", ticketId });
+  const handleReturn = (ticketId: string) => setModal({ type: "return", ticketId });
+  const handleReject = (ticketId: string) => setModal({ type: "reject", ticketId });
+
+  const handleEdit = (templateId: string) => {
+    closeDetail();
+    setPcDetail(null);
+    setPageMode({ type: "edit", templateId });
   };
 
-  const handleReject = (ticketId: string) => {
-    setModal({ type: "reject", ticketId });
-  };
-
-  // ── Open ticket helpers ────────────────────────────────────────────────────
-
+  // ── Open ticket helpers ──
   const openBrowseTicket = (tmpl: TaskTemplate) => {
-    const openTicket = getTicketsByTemplateId(tmpl.id).find((t) => t.status === "open");
+    const openTicket = ctx.getTicketsByTemplate(tmpl.id).find((t) => t.status === "open");
     const isOwner = tmpl.ordererId === CURRENT_USER_ID;
     openDetail(tmpl.id, openTicket?.id, isOwner ? "owner" : "browse");
   };
 
-  const openMyTicket = (ticket: TaskTicket) => {
-    openDetail(ticket.templateId, ticket.id, "my_task");
-  };
+  const openMyTicket = (ticket: TaskTicket) => openDetail(ticket.templateId, ticket.id, "my_task");
+  const openPendingTicket = (templateId: string, ticketId: string) => openDetail(templateId, ticketId, "approve_pending");
+  const openOwnerTemplate = (templateId: string) => openDetail(templateId, undefined, "owner");
 
-  const openPendingTicket = (templateId: string, ticketId: string) => {
-    openDetail(templateId, ticketId, "approve_pending");
-  };
-
-  const openOwnerTemplate = (templateId: string) => {
-    openDetail(templateId, undefined, "owner");
-  };
-
-  // PC select handler
-  const handlePcSelect = (
-    templateId: string,
-    ticketId?: string,
-    context?: DetailContext
-  ) => {
+  const handlePcSelect = (templateId: string, ticketId?: string, context?: DetailContext) => {
     setPcSelectedId(ticketId ?? templateId);
     setPcDetail({ templateId, ticketId, context: context ?? "browse" });
   };
 
-  // ── Subtab data ────────────────────────────────────────────────────────────
-
-  const openTemplates = TASK_TEMPLATES.filter((tmpl) =>
-    getTicketsByTemplateId(tmpl.id).some((t) => t.status === "open")
+  // ── Subtab data ──
+  const openTemplates = ctx.templates.filter((tmpl) =>
+    ctx.getTicketsByTemplate(tmpl.id).some((t) => t.status === "open")
   );
 
-  const myActiveTickets = getMyActiveTickets();
-  const myDoneTickets = TASK_TICKETS.filter(
-    (t) => t.acceptedById === CURRENT_USER_ID && t.status === "done"
-  );
-  const myAllTickets = [...myActiveTickets, ...myDoneTickets.map((t) => ({ ...t, template: TASK_TEMPLATES.find((tmpl) => tmpl.id === t.templateId)! }))];
+  const myActiveTickets = ctx.getMyActiveTickets();
+  const myDoneTickets = ctx.tickets
+    .filter((t) => t.acceptedById === CURRENT_USER_ID && t.status === "done")
+    .map((t) => ({ ...t, template: ctx.templates.find((tmpl) => tmpl.id === t.templateId)! }));
+  const myAllTickets = [...myActiveTickets, ...myDoneTickets];
 
   const SUBTAB_LABELS = [
     { label: "募集中",     count: openTemplates.length },
     { label: "マイタスク", count: myActiveTickets.length },
-    { label: "タスク発注", count: getMyOrderedTemplates().length },
+    { label: "タスク発注", count: ctx.getMyOrderedTemplates().length },
   ];
 
-  // ── Render non-list modes ──────────────────────────────────────────────────
-
+  // ── Non-list modes ──
   if (pageMode.type === "create") {
     return (
       <TaskCreatePage
         onBack={() => setPageMode({ type: "list" })}
-        onPublish={() => {
+        onPublish={(data) => {
+          ctx.createTemplate(data);
           setPageMode({ type: "list" });
-          alert("タスクを公開しました！（モック）");
+          setSubtab(2); // 発注タブに切り替え
+        }}
+      />
+    );
+  }
+
+  if (pageMode.type === "edit") {
+    const tmpl = ctx.getTemplateById(pageMode.templateId);
+    return (
+      <TaskCreatePage
+        initial={tmpl}
+        onBack={() => setPageMode({ type: "list" })}
+        onPublish={(data) => {
+          ctx.updateTemplate(pageMode.templateId, data);
+          setPageMode({ type: "list" });
         }}
       />
     );
@@ -620,9 +553,9 @@ export default function TasksPage() {
       <TaskReportPage
         ticketId={pageMode.ticketId}
         onBack={() => setPageMode({ type: "list" })}
-        onSubmit={() => {
+        onSubmit={(reportText) => {
+          ctx.submitReport(pageMode.ticketId, reportText);
           setPageMode({ type: "list" });
-          alert("実施報告を送りました！（モック）");
         }}
       />
     );
@@ -638,15 +571,12 @@ export default function TasksPage() {
     );
   }
 
-  // ── Main list view ─────────────────────────────────────────────────────────
-
+  // ── Main list view ──
   return (
     <div className="flex flex-col h-full relative">
-      {/* ── SP ───────────────────────────────────────────────────────────── */}
+      {/* ── SP ── */}
       <div className="md:hidden flex flex-col h-full">
         <TopBar title="タスク" />
-
-        {/* Subtabs */}
         <div className="flex-none flex border-b border-[#dedee5] px-3">
           {SUBTAB_LABELS.map((t, i) => {
             const on = i === subtab;
@@ -655,17 +585,11 @@ export default function TasksPage() {
                 key={t.label}
                 onClick={() => setSubtab(i as SubTab)}
                 className={`px-2.5 py-3 text-[12.5px] font-${on ? "semibold" : "medium"} flex items-center gap-1.5 border-b-2 -mb-px transition-colors ${
-                  on
-                    ? "text-[#1a1a1a] border-[#1a1a1a]"
-                    : "text-[#9a9aa0] border-transparent"
+                  on ? "text-[#1a1a1a] border-[#1a1a1a]" : "text-[#9a9aa0] border-transparent"
                 }`}
               >
                 {t.label}
-                <span
-                  className={`text-[9.5px] font-bold font-mono px-1.5 py-px rounded-full ${
-                    on ? "bg-[#1a1a1a] text-white" : "bg-[#dedee5] text-[#9a9aa0]"
-                  }`}
-                >
+                <span className={`text-[9.5px] font-bold font-mono px-1.5 py-px rounded-full ${on ? "bg-[#1a1a1a] text-white" : "bg-[#dedee5] text-[#9a9aa0]"}`}>
                   {t.count}
                 </span>
               </button>
@@ -673,36 +597,22 @@ export default function TasksPage() {
           })}
         </div>
 
-        {/* List body */}
         <div className="flex-1 overflow-y-auto">
-          {subtab === 0 &&
-            openTemplates.map((tmpl) => (
-              <TaskCard
-                key={tmpl.id}
-                tmpl={tmpl}
-                onOpen={() => openBrowseTicket(tmpl)}
-              />
-            ))}
-
-          {subtab === 1 &&
-            myAllTickets.map(({ template: tmpl, ...ticket }) => (
-              <MyTaskCard
-                key={ticket.id}
-                ticket={ticket}
-                tmpl={tmpl}
-                onOpen={() => openMyTicket(ticket)}
-              />
-            ))}
-
+          {subtab === 0 && openTemplates.map((tmpl) => (
+            <TaskCard key={tmpl.id} tmpl={tmpl} onOpen={() => openBrowseTicket(tmpl)} />
+          ))}
+          {subtab === 1 && myAllTickets.map(({ template: tmpl, ...ticket }) => (
+            <MyTaskCard key={ticket.id} ticket={ticket} tmpl={tmpl} onOpen={() => openMyTicket(ticket)} />
+          ))}
           {subtab === 2 && (
             <OrdererTab
               onOpenTemplate={openOwnerTemplate}
               onOpenPendingTicket={openPendingTicket}
+              onEditTemplate={handleEdit}
             />
           )}
         </div>
 
-        {/* FAB */}
         <button
           onClick={() => setPageMode({ type: "create" })}
           className="absolute right-4 bottom-4 w-[52px] h-[52px] rounded-full bg-[#6666ff] text-white text-[24px] font-light flex items-center justify-center shadow-[0_4px_12px_rgba(0,0,0,.15)] z-10"
@@ -711,45 +621,29 @@ export default function TasksPage() {
         </button>
       </div>
 
-      {/* ── PC ───────────────────────────────────────────────────────────── */}
+      {/* ── PC ── */}
       <div className="hidden md:flex flex-col h-full">
         <PcHeader
           title="タスク"
           sub="コミュニティ業務の募集・実行・承認"
           right={
-            <>
-              <Button size="sm" variant="ghost">⌕ 検索</Button>
-              <Button size="sm" onClick={() => setPageMode({ type: "create" })}>
-                + 新規タスク
-              </Button>
-            </>
+            <Button size="sm" onClick={() => setPageMode({ type: "create" })}>+ 新規タスク</Button>
           }
         />
-
         <div className="flex flex-1 overflow-hidden">
-          {/* Left sub-nav */}
           <PcSubNav
             subtab={subtab}
             onChangeTab={(t) => { setSubtab(t); setPcDetail(null); setPcSelectedId(null); }}
             category={pcCategory}
             onCategoryChange={setPcCategory}
           />
-
-          {/* Center list */}
-          <PcTaskList
-            subtab={subtab}
-            selectedId={pcSelectedId}
-            onSelect={handlePcSelect}
-            category={pcCategory}
-          />
-
-          {/* Right detail pane */}
+          <PcTaskList subtab={subtab} selectedId={pcSelectedId} onSelect={handlePcSelect} category={pcCategory} />
           <div className="flex-1 flex flex-col overflow-hidden min-w-0">
             {subtab === 2 ? (
-              /* タスク発注 - shows orderer view in right pane */
               <OrdererTab
                 onOpenTemplate={(tid) => handlePcSelect(tid, undefined, "owner")}
                 onOpenPendingTicket={(tid, tkid) => handlePcSelect(tid, tkid, "approve_pending")}
+                onEditTemplate={handleEdit}
               />
             ) : pcDetail ? (
               <TaskDetailPanel
@@ -757,11 +651,15 @@ export default function TasksPage() {
                 ticketId={pcDetail.ticketId}
                 context={pcDetail.context}
                 onClose={() => { setPcDetail(null); setPcSelectedId(null); }}
-                onAccept={handleAccept}
+                onAccept={() => {
+                  if (pcDetail.ticketId) ctx.acceptTicket(pcDetail.ticketId);
+                  setPcDetail(null); setPcSelectedId(null);
+                }}
                 onReport={(id) => setPageMode({ type: "report", ticketId: id })}
                 onApprove={(id) => setPageMode({ type: "approve", ticketId: id })}
                 onReturn={(id) => setModal({ type: "return", ticketId: id })}
                 onReject={(id) => setModal({ type: "reject", ticketId: id })}
+                onEdit={handleEdit}
               />
             ) : (
               <div className="flex-1 flex items-center justify-center text-[#9a9aa0] text-[13px]">
@@ -772,18 +670,11 @@ export default function TasksPage() {
         </div>
       </div>
 
-      {/* ── SP Detail bottom sheet ────────────────────────────────────────── */}
+      {/* ── SP Detail bottom sheet ── */}
       {detail && (
         <div className="md:hidden">
-          {/* Backdrop */}
-          <div
-            className="fixed inset-0 bg-black/40 z-30"
-            onClick={closeDetail}
-          />
-          {/* Sheet */}
-          <div className="fixed left-0 right-0 bottom-0 z-40 bg-white rounded-t-2xl flex flex-col"
-            style={{ maxHeight: "90dvh" }}
-          >
+          <div className="fixed inset-0 bg-black/40 z-50" onClick={closeDetail} />
+          <div className="fixed left-0 right-0 z-50 bg-white rounded-t-2xl flex flex-col" style={{ bottom: 56, maxHeight: "calc(90dvh - 56px)" }}>
             <TaskDetailPanel
               templateId={detail.templateId}
               ticketId={detail.ticketId}
@@ -794,19 +685,21 @@ export default function TasksPage() {
               onApprove={handleApproveOpen}
               onReturn={handleReturn}
               onReject={handleReject}
+              onEdit={handleEdit}
             />
           </div>
         </div>
       )}
 
-      {/* ── Modals ────────────────────────────────────────────────────────── */}
+      {/* ── Modals ── */}
       {modal?.type === "return" && (
         <ReturnModal
           ticketId={modal.ticketId}
           onCancel={() => setModal(null)}
           onReturn={() => {
+            ctx.returnTicket(modal.ticketId);
             setModal(null);
-            alert("返却しました！（モック）");
+            closeDetail();
           }}
         />
       )}
@@ -815,11 +708,22 @@ export default function TasksPage() {
           ticketId={modal.ticketId}
           onCancel={() => setModal(null)}
           onReject={() => {
+            ctx.rejectTicket(modal.ticketId);
             setModal(null);
-            alert("差し戻しました！（モック）");
+            closeDetail();
           }}
         />
       )}
     </div>
+  );
+}
+
+// ─── Wrapped export ──────────────────────────────────────────────────────────
+
+export default function TasksPage() {
+  return (
+    <TaskProvider>
+      <TasksPageInner />
+    </TaskProvider>
   );
 }

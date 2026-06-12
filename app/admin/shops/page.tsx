@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { Avatar } from "@/components/atoms/Avatar";
 import { AdminBtn, AdminPageShell } from "@/components/admin/atoms";
 
@@ -58,49 +59,77 @@ const DOWNLOAD_OPTIONS = ["A4 ポスター用 PDF", "A6 卓上版 PDF", "透明�
 // ─── Page ─────────────────────────────────────────────────────────────────
 
 export default function AdminShopsPage() {
+  const [shopName, setShopName] = useState("新富カフェ ことり");
+  const [category, setCategory] = useState("飲食 / カフェ");
+  const [hours, setHours] = useState("8:00–19:00 (火曜定休)");
+  const [address, setAddress] = useState("東京都中央区新富町2-3-5");
+  const [representative, setRepresentative] = useState("伊藤 さくら");
+  const [email, setEmail] = useState("kotori@example.com");
+  const [bio, setBio] = useState("こだわりのスペシャルティコーヒーと自家製スイーツのお店。Wi-Fi完備。");
+
   return (
     <AdminPageShell
       breadcrumbs="HOME › 店舗 › 新規"
       title="店舗を登録"
       actions={
         <>
-          <AdminBtn variant="ghost">下書き保存</AdminBtn>
-          <AdminBtn>登録してQRを発行</AdminBtn>
+          <AdminBtn variant="ghost" onClick={() => alert("下書きを保存しました（デモ）")}>下書き保存</AdminBtn>
+          <AdminBtn onClick={() => alert("店舗を登録してQRコードを発行しました（デモ）")}>登録してQRを発行</AdminBtn>
         </>
       }
     >
-      <div className="flex overflow-hidden" style={{ minHeight: "calc(100vh - 120px)" }}>
+      <div className="flex flex-col md:flex-row overflow-hidden" style={{ minHeight: "calc(100vh - 120px)" }}>
 
         {/* Left: form */}
-        <div className="flex-1 p-6 overflow-y-auto">
+        <div className="flex-1 p-4 md:p-6 overflow-y-auto">
           <div className="max-w-[640px]">
+
+            {/* Shop image */}
+            <div className="mb-3.5">
+              <div className="text-[11.5px] font-semibold mb-1.5">店舗画像</div>
+              <div className="flex items-center gap-3">
+                <div
+                  className="flex items-center justify-center rounded-xl bg-[#f1f1f5] text-[#9a9aa0] text-[24px] font-bold flex-none"
+                  style={{ width: 64, height: 64 }}
+                >
+                  🏪
+                </div>
+                <AdminBtn variant="outline" onClick={() => alert("画像の変更画面は今後実装予定です")}>画像を変更</AdminBtn>
+                <AdminBtn variant="ghost" onClick={() => alert("画像を削除しました（デモ）")}>削除</AdminBtn>
+              </div>
+            </div>
 
             {/* Shop name */}
             <div className="mb-3.5">
               <div className="text-[11.5px] font-semibold mb-1.5">
                 店舗名 <span className="text-[#6666ff]">*</span>
               </div>
-              <div className="h-9 border border-[#dedee5] rounded-md px-3 flex items-center text-[12.5px] bg-white">
-                新富カフェ ことり
-              </div>
+              <input
+                className="h-9 border border-[#dedee5] rounded-md px-3 flex items-center text-[12.5px] bg-white w-full outline-none focus:border-[#6666ff]"
+                value={shopName}
+                onChange={(e) => setShopName(e.target.value)}
+              />
             </div>
 
             {/* 2-col grid */}
-            <div className="grid grid-cols-2 gap-3.5 mb-3.5">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 mb-3.5">
               <div>
                 <div className="text-[11.5px] font-semibold mb-1.5">
                   カテゴリ <span className="text-[#6666ff]">*</span>
                 </div>
-                <div className="h-9 border border-[#dedee5] rounded-md px-3 flex items-center justify-between text-[12.5px] bg-white">
-                  <span>飲食 / カフェ</span>
-                  <span className="text-[#9a9aa0]">▾</span>
-                </div>
+                <input
+                  className="h-9 border border-[#dedee5] rounded-md px-3 flex items-center text-[12.5px] bg-white w-full outline-none focus:border-[#6666ff]"
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value)}
+                />
               </div>
               <div>
                 <div className="text-[11.5px] font-semibold mb-1.5">営業時間</div>
-                <div className="h-9 border border-[#dedee5] rounded-md px-3 flex items-center text-[12.5px] bg-white">
-                  8:00–19:00 (火曜定休)
-                </div>
+                <input
+                  className="h-9 border border-[#dedee5] rounded-md px-3 flex items-center text-[12.5px] bg-white w-full outline-none focus:border-[#6666ff]"
+                  value={hours}
+                  onChange={(e) => setHours(e.target.value)}
+                />
               </div>
             </div>
 
@@ -109,26 +138,32 @@ export default function AdminShopsPage() {
               <div className="text-[11.5px] font-semibold mb-1.5">
                 住所 <span className="text-[#6666ff]">*</span>
               </div>
-              <div className="h-9 border border-[#dedee5] rounded-md px-3 flex items-center text-[12.5px] bg-white">
-                東京都中央区新富町2-3-5
-              </div>
+              <input
+                className="h-9 border border-[#dedee5] rounded-md px-3 flex items-center text-[12.5px] bg-white w-full outline-none focus:border-[#6666ff]"
+                value={address}
+                onChange={(e) => setAddress(e.target.value)}
+              />
             </div>
 
             {/* 2-col grid */}
-            <div className="grid grid-cols-2 gap-3.5 mb-3.5">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 mb-3.5">
               <div>
                 <div className="text-[11.5px] font-semibold mb-1.5">代表者</div>
-                <div className="h-9 border border-[#dedee5] rounded-md px-3 flex items-center text-[12.5px] bg-white">
-                  伊藤 さくら
-                </div>
+                <input
+                  className="h-9 border border-[#dedee5] rounded-md px-3 flex items-center text-[12.5px] bg-white w-full outline-none focus:border-[#6666ff]"
+                  value={representative}
+                  onChange={(e) => setRepresentative(e.target.value)}
+                />
               </div>
               <div>
                 <div className="text-[11.5px] font-semibold mb-1.5">
                   連絡先メール <span className="text-[#6666ff]">*</span>
                 </div>
-                <div className="h-9 border border-[#dedee5] rounded-md px-3 flex items-center text-[12.5px] font-mono bg-white">
-                  kotori@example.com
-                </div>
+                <input
+                  className="h-9 border border-[#dedee5] rounded-md px-3 flex items-center text-[12.5px] font-mono bg-white w-full outline-none focus:border-[#6666ff]"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                />
               </div>
             </div>
 
@@ -138,9 +173,11 @@ export default function AdminShopsPage() {
               <div className="text-[10.5px] text-[#9a9aa0] mb-1.5">
                 お知らせや掲示板で参照される説明文
               </div>
-              <div className="min-h-[60px] p-2.5 border border-[#dedee5] rounded-md text-[11.5px] text-[#525261] leading-[1.5] bg-white">
-                こだわりのスペシャルティコーヒーと自家製スイーツのお店。Wi-Fi完備。
-              </div>
+              <textarea
+                className="min-h-[60px] p-2.5 border border-[#dedee5] rounded-md text-[11.5px] text-[#525261] leading-[1.5] bg-white w-full outline-none focus:border-[#6666ff] resize-y"
+                value={bio}
+                onChange={(e) => setBio(e.target.value)}
+              />
             </div>
 
             {/* Checkin settings */}
@@ -157,9 +194,12 @@ export default function AdminShopsPage() {
                   <span className={`flex-1 font-semibold ${k.includes("報酬") ? "font-mono" : ""}`}>
                     {v}
                   </span>
-                  <span className="text-[10px] text-[#6666ff] font-semibold cursor-pointer">
+                  <button
+                    className="text-[10px] text-[#6666ff] font-semibold cursor-pointer hover:underline"
+                    onClick={() => alert("チェックイン設定の変更画面は今後実装予定です")}
+                  >
                     変更
-                  </span>
+                  </button>
                 </div>
               ))}
             </div>
@@ -174,9 +214,12 @@ export default function AdminShopsPage() {
                 <div className="text-[12px] font-semibold">伊藤 さくら</div>
                 <div className="text-[10.5px] text-[#9a9aa0] font-mono">@sakura.ito</div>
               </div>
-              <span className="text-[10.5px] text-[#6666ff] font-semibold cursor-pointer">
+              <button
+                className="text-[10.5px] text-[#6666ff] font-semibold cursor-pointer hover:underline"
+                onClick={() => alert("店舗管理者の変更画面は今後実装予定です")}
+              >
                 変更
-              </span>
+              </button>
             </div>
             <div className="text-[10.5px] text-[#9a9aa0] mt-1.5 leading-[1.5]">
               店舗オーナーは「運営者ビュー」で店舗QR表示・チェックイン状況確認・クーポン発行が可能
@@ -186,8 +229,7 @@ export default function AdminShopsPage() {
 
         {/* Right: QR preview */}
         <div
-          className="flex-none border-l border-[#dedee5] bg-[#f1f1f5] p-6 overflow-y-auto"
-          style={{ width: 340 }}
+          className="flex-none border-t md:border-t-0 md:border-l border-[#dedee5] bg-[#f1f1f5] p-4 md:p-6 overflow-y-auto w-full md:w-[340px]"
         >
           <div className="text-[12px] font-bold mb-3">QRプレビュー</div>
 
@@ -204,13 +246,14 @@ export default function AdminShopsPage() {
 
           <div className="flex flex-col gap-1.5 mb-4">
             {DOWNLOAD_OPTIONS.map((d) => (
-              <div
+              <button
                 key={d}
-                className="flex items-center gap-2 px-3 py-2 border border-[#dedee5] rounded-md bg-white text-[11px] cursor-pointer hover:border-[#9a9aa0]"
+                className="flex items-center gap-2 px-3 py-2 border border-[#dedee5] rounded-md bg-white text-[11px] cursor-pointer hover:border-[#9a9aa0] w-full text-left"
+                onClick={() => alert("QRコードのダウンロードを開始しました（デモ）")}
               >
                 <span className="flex-1">{d}</span>
                 <span className="text-[10px] text-[#6666ff] font-semibold">↓</span>
-              </div>
+              </button>
             ))}
           </div>
 

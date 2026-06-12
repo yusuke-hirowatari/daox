@@ -239,15 +239,25 @@ function EditField({ label, children }: { label: string; children: React.ReactNo
   );
 }
 
-function EditProfileForm() {
-  const [tags, setTags] = useState(["カフェ", "イベント運営", "写真"]);
+interface ProfileData {
+  name: string;
+  bio: string;
+  tags: string[];
+}
+
+interface EditProfileFormProps {
+  data: ProfileData;
+  onChange: (data: ProfileData) => void;
+}
+
+function EditProfileForm({ data, onChange }: EditProfileFormProps) {
   const [addingTag, setAddingTag] = useState(false);
   const [tagInput, setTagInput] = useState("");
 
-  const removeTag = (t: string) => setTags((prev) => prev.filter((x) => x !== t));
+  const removeTag = (t: string) => onChange({ ...data, tags: data.tags.filter((x) => x !== t) });
   const commitTag = () => {
     const v = tagInput.trim();
-    if (v && !tags.includes(v)) setTags((prev) => [...prev, v]);
+    if (v && !data.tags.includes(v)) onChange({ ...data, tags: [...data.tags, v] });
     setTagInput("");
     setAddingTag(false);
   };
@@ -257,18 +267,27 @@ function EditProfileForm() {
       {/* Avatar */}
       <EditField label="アイコン画像">
         <div className="flex items-center gap-4">
-          <Avatar size={56} label="田" tone={0} />
-          <button className="text-[12px] font-semibold px-3 py-2 border border-[#dedee5] rounded-lg hover:bg-[#f1f1f5] transition-colors">
+          <Avatar size={56} label={data.name[0] ?? "?"} tone={0} />
+          <label className="text-[12px] font-semibold px-3 py-2 border border-[#dedee5] rounded-lg hover:bg-[#f1f1f5] transition-colors cursor-pointer">
             画像を変更
-          </button>
+            <input
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={() => alert("画像を選択しました（プレビュー機能は実装予定）")}
+            />
+          </label>
         </div>
       </EditField>
 
       {/* Name */}
       <EditField label="表示名">
-        <div className="h-10 border border-[#dedee5] rounded-lg px-3 flex items-center text-[13px] bg-white">
-          田中 太郎
-        </div>
+        <input
+          type="text"
+          value={data.name}
+          onChange={(e) => onChange({ ...data, name: e.target.value })}
+          className="h-10 w-full border border-[#dedee5] rounded-lg px-3 text-[13px] bg-white outline-none focus:border-[#1a1a1a]"
+        />
       </EditField>
 
       {/* Handle */}
@@ -280,15 +299,17 @@ function EditProfileForm() {
 
       {/* Bio */}
       <EditField label="自己紹介">
-        <div className="min-h-[80px] border border-[#dedee5] rounded-lg px-3 py-2.5 text-[13px] bg-white text-[#1a1a1a] leading-relaxed">
-          地元のカフェ巡りが好きです。週末は商店街の手伝いをしています。
-        </div>
+        <textarea
+          value={data.bio}
+          onChange={(e) => onChange({ ...data, bio: e.target.value })}
+          className="w-full min-h-[80px] border border-[#dedee5] rounded-lg px-3 py-2.5 text-[13px] bg-white text-[#1a1a1a] leading-relaxed outline-none focus:border-[#1a1a1a] resize-none"
+        />
       </EditField>
 
       {/* Interests */}
       <EditField label="興味・タグ">
         <div className="flex flex-wrap gap-1.5 p-2.5 border border-[#dedee5] rounded-lg bg-white min-h-[48px]">
-          {tags.map((t) => (
+          {data.tags.map((t) => (
             <button
               key={t}
               onClick={() => removeTag(t)}
@@ -317,10 +338,6 @@ function EditProfileForm() {
           )}
         </div>
       </EditField>
-
-      <div className="text-[10.5px] text-[#9a9aa0] mt-2 leading-relaxed">
-        ※ このページはモックです。変更は保存されません。
-      </div>
     </div>
   );
 }
@@ -335,6 +352,25 @@ export default function MyPage() {
   const [lbTab, setLbTab] = useState(0);
   const [pcTab, setPcTab] = useState(0);
 
+  // ── Profile state (editable) ──
+  const [profile, setProfile] = useState<ProfileData>({
+    name: user.name,
+    bio: "地元のカフェ巡りが好きです。週末は商店街の手伝いをしています。",
+    tags: ["カフェ", "イベント運営", "写真"],
+  });
+  const [editDraft, setEditDraft] = useState<ProfileData>(profile);
+
+  const handleEditStart = () => {
+    setEditDraft(profile);
+    setView("edit");
+  };
+
+  const handleEditSave = () => {
+    setProfile(editDraft);
+    setView("hub");
+  };
+
+  const [appliedDuties, setAppliedDuties] = useState<Set<number>>(new Set());
   const isPremium = CURRENT_VISITS >= PREMIUM_REQS.visits && CURRENT_DUTIES >= PREMIUM_REQS.duties;
 
   // ─── PC section ───────────────────────────────────────────────────────────
@@ -342,11 +378,11 @@ export default function MyPage() {
   const pcSection = (
     <div className="hidden md:flex flex-col h-full bg-white">
       <PcHeader
-        title={user.name}
+        title={profile.name}
         sub={`@taro.tanaka · 新富商店街コミュニティ`}
         right={
           <button
-            onClick={() => setView("edit")}
+            onClick={handleEditStart}
             className="text-[12px] font-semibold px-3 py-1.5 rounded-lg border border-[#dedee5] hover:bg-[#f1f1f5] transition-colors"
           >
             プロフィールを編集
@@ -357,8 +393,8 @@ export default function MyPage() {
         {/* Left identity panel */}
         <div className="w-[280px] flex-none border-r border-[#dedee5] bg-[#f1f1f5] p-5 flex flex-col gap-4 overflow-y-auto">
           <div className="flex flex-col items-center gap-2">
-            <Avatar size={80} label={user.initial} tone={user.tone} />
-            <div className="text-[16px] font-bold">{user.name}</div>
+            <Avatar size={80} label={profile.name[0] ?? user.initial} tone={user.tone} />
+            <div className="text-[16px] font-bold">{profile.name}</div>
             <RankBadge xp={CURRENT_XP} />
           </div>
 
@@ -546,42 +582,70 @@ export default function MyPage() {
   // ─── SP: Hub ──────────────────────────────────────────────────────────────
 
   if (view === "hub") {
+    const menuItems = NAV_ITEMS.filter((r) => r.view !== "settings");
     return (
       <div className="flex flex-col h-full">
-        <div className="md:hidden flex flex-col h-full">
-          <TopBar
-            title="マイページ"
-            left={<BackButton />}
-            right={
-              <button className="text-[14px] text-[#9a9aa0]">⚙</button>
-            }
-          />
+        <div className="md:hidden flex flex-col h-full bg-[#f5f5f7]">
+          <TopBar title="マイページ" />
           <div className="flex-1 overflow-y-auto">
-            {/* Identity */}
-            <div className="flex items-center gap-3.5 px-5 pt-4 pb-3">
-              <Avatar size={56} label={user.initial} tone={user.tone} />
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-[16px] font-bold">{user.name}</span>
+            {/* Profile card */}
+            <div className="mx-4 mt-4 mb-3 bg-white rounded-2xl border border-[#dedee5] overflow-hidden">
+              <div className="flex flex-col items-center pt-5 pb-3 px-5">
+                <Avatar size={68} label={user.initial} tone={user.tone} />
+                <div className="flex items-center gap-1.5 mt-2.5">
+                  <span className="text-[17px] font-bold">{profile.name}</span>
                   <RankBadge xp={CURRENT_XP} compact />
                 </div>
-                <div className="text-[10.5px] text-[#9a9aa0] font-mono mt-0.5">
+                <div className="text-[11px] text-[#9a9aa0] font-mono mt-0.5">
                   @taro.tanaka
                 </div>
-                <div className="text-[10.5px] text-[#525261] mt-0.5">
+                <div className="text-[11px] text-[#525261] mt-0.5">
                   新富商店街 · 加入 6ヶ月
                 </div>
+                {/* Bio */}
+                <div className="mt-2.5 text-[11.5px] text-[#525261] leading-relaxed text-center whitespace-pre-wrap">
+                  {profile.bio}
+                </div>
+                <div className="flex flex-wrap justify-center gap-1.5 mt-2">
+                  {profile.tags.map((t) => (
+                    <span
+                      key={t}
+                      className="text-[10.5px] font-medium px-2.5 py-0.5 rounded-full bg-[#f1f1f5] text-[#525261]"
+                    >
+                      {t}
+                    </span>
+                  ))}
+                </div>
+                <button
+                  onClick={handleEditStart}
+                  className="mt-3 w-full text-[12px] font-semibold py-2 rounded-lg border border-[#dedee5] text-[#525261] hover:bg-[#f1f1f5] transition-colors"
+                >
+                  プロフィールを編集
+                </button>
               </div>
-              <button
-                onClick={() => setView("edit")}
-                className="text-[11px] text-[#6666ff] font-semibold"
-              >
-                編集
-              </button>
+
+              {/* Stats */}
+              <div className="border-t border-[#dedee5] flex items-center justify-around py-3">
+                {[
+                  { v: DAO_BALANCE.toString(), k: "DAO残高", accent: true },
+                  { v: CHECKIN_COUNT.toString(), k: "チェックイン" },
+                  { v: TASK_DONE.toString(), k: "タスク完了" },
+                ].map((s, i) => (
+                  <div key={s.k} className={`text-center flex-1 ${i > 0 ? "border-l border-[#dedee5]" : ""}`}>
+                    <div
+                      className="text-[20px] font-bold font-mono leading-none"
+                      style={{ color: s.accent ? "#6666ff" : "#1a1a1a" }}
+                    >
+                      {s.v}
+                    </div>
+                    <div className="text-[9.5px] text-[#9a9aa0] mt-1">{s.k}</div>
+                  </div>
+                ))}
+              </div>
             </div>
 
             {/* Rank progress */}
-            <div className="px-5 pb-3">
+            <div className="px-4 pb-3">
               <RankProgressCard
                 visits={CURRENT_VISITS}
                 duties={CURRENT_DUTIES}
@@ -589,74 +653,54 @@ export default function MyPage() {
               />
             </div>
 
-            {/* Stats */}
-            <div className="mx-5 mb-3.5 px-2 py-3 bg-[#f1f1f5] rounded-xl border border-[#dedee5] flex items-center justify-around">
-              {[
-                { v: DAO_BALANCE.toString(), k: "DAO残高", accent: true },
-                { v: CHECKIN_COUNT.toString(), k: "チェックイン" },
-                { v: TASK_DONE.toString(), k: "タスク完了" },
-              ].map((s) => (
-                <div key={s.k} className="text-center flex-1">
-                  <div
-                    className="text-[20px] font-bold font-mono leading-none"
-                    style={{ color: s.accent ? "#6666ff" : "#1a1a1a" }}
-                  >
-                    {s.v}
-                  </div>
-                  <div className="text-[9.5px] text-[#9a9aa0] mt-0.5">{s.k}</div>
-                </div>
-              ))}
-            </div>
-
-            {/* Bio */}
-            <div className="px-5 pb-1.5 text-[11.5px] text-[#525261] leading-relaxed">
-              地元のカフェ巡りが好きです。週末は商店街の手伝いをしています。
-            </div>
-            <div className="flex flex-wrap gap-1.5 px-5 pb-3.5">
-              {["カフェ", "イベント運営", "写真"].map((t) => (
-                <span
-                  key={t}
-                  className="text-[11px] font-medium px-2.5 py-1 rounded-full bg-[#f1f1f5] border border-[#dedee5] text-[#525261]"
+            {/* Menu section */}
+            <div className="mx-4 mb-3 bg-white rounded-2xl border border-[#dedee5] overflow-hidden">
+              {menuItems.map((row, i) => (
+                <button
+                  key={row.label}
+                  onClick={() => setView(row.view)}
+                  className={`w-full flex items-center gap-3 px-4 py-3 hover:bg-[#fafafa] transition-colors text-left ${
+                    i < menuItems.length - 1 ? "border-b border-[#dedee5]" : ""
+                  }`}
                 >
-                  {t}
-                </span>
+                  <span className="text-[15px] w-6 text-center flex-none">{row.icon}</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[13px] font-medium">{row.label}</div>
+                    {row.sub && (
+                      <div className="text-[10px] text-[#9a9aa0] mt-0.5">{row.sub}</div>
+                    )}
+                  </div>
+                  <span className="text-[14px] text-[#9a9aa0]">›</span>
+                </button>
               ))}
+              {!isPremium && (
+                <button
+                  onClick={() => setView("level_up")}
+                  className="w-full flex items-center gap-3 px-4 py-3 border-t border-[#dedee5] hover:bg-[#fafafa] transition-colors text-left"
+                >
+                  <span className="text-[15px] w-6 text-center flex-none">🎖</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[13px] font-medium">プレミアム達成イメージ</div>
+                    <div className="text-[10px] text-[#9a9aa0] mt-0.5">達成通知のプレビュー</div>
+                  </div>
+                  <span className="text-[14px] text-[#9a9aa0]">›</span>
+                </button>
+              )}
             </div>
 
-            <div className="border-t border-[#dedee5] mb-0" />
-
-            {/* Nav list */}
-            {NAV_ITEMS.map((row) => (
+            {/* Settings section */}
+            <div className="mx-4 mb-6 bg-white rounded-2xl border border-[#dedee5] overflow-hidden">
               <button
-                key={row.label}
-                onClick={() => setView(row.view)}
-                className="w-full flex items-center gap-3 px-5 py-2.5 border-b border-[#dedee5] hover:bg-[#fafafa] transition-colors text-left"
+                onClick={() => setView("settings")}
+                className="w-full flex items-center gap-3 px-4 py-3 hover:bg-[#fafafa] transition-colors text-left"
               >
-                <span className="text-[14px] w-5 text-center flex-none">{row.icon}</span>
+                <span className="text-[15px] w-6 text-center flex-none">⚙</span>
                 <div className="flex-1 min-w-0">
-                  <div className="text-[12.5px] font-medium">{row.label}</div>
-                  {row.sub && (
-                    <div className="text-[9.5px] text-[#9a9aa0] mt-0.5">{row.sub}</div>
-                  )}
+                  <div className="text-[13px] font-medium">アカウント設定</div>
                 </div>
                 <span className="text-[14px] text-[#9a9aa0]">›</span>
               </button>
-            ))}
-
-            {/* Level-up demo button (only shown if not premium) */}
-            {!isPremium && (
-              <button
-                onClick={() => setView("level_up")}
-                className="w-full flex items-center gap-3 px-5 py-2.5 border-b border-[#dedee5] hover:bg-[#fafafa] transition-colors text-left"
-              >
-                <span className="text-[14px] w-5 text-center flex-none">🎖</span>
-                <div className="flex-1 min-w-0">
-                  <div className="text-[12.5px] font-medium">プレミアム達成イメージ</div>
-                  <div className="text-[9.5px] text-[#9a9aa0] mt-0.5">達成通知のプレビュー</div>
-                </div>
-                <span className="text-[14px] text-[#9a9aa0]">›</span>
-              </button>
-            )}
+            </div>
           </div>
         </div>
         {pcSection}
@@ -820,32 +864,44 @@ export default function MyPage() {
               <span className="text-[10px] text-[#9a9aa0]">すべて →</span>
             </div>
             <div className="px-4 pb-3.5 flex flex-col gap-2">
-              {DUTY_OFFERINGS.map((d, i) => (
-                <div
-                  key={i}
-                  className="border border-[#dedee5] rounded-xl px-3 py-2.5 flex items-center gap-2.5"
-                >
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1.5 mb-0.5">
-                      <span className="text-[12px] font-bold">{d.name}</span>
-                      <span className="text-[9px] font-medium px-1.5 py-0.5 rounded bg-[#e8e8f0] text-[#525261]">
-                        {d.tag}
-                      </span>
+              {DUTY_OFFERINGS.map((d, i) => {
+                const applied = appliedDuties.has(i);
+                return (
+                  <div
+                    key={i}
+                    className="border border-[#dedee5] rounded-xl px-3 py-2.5 flex items-center gap-2.5"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5 mb-0.5">
+                        <span className="text-[12px] font-bold">{d.name}</span>
+                        <span className="text-[9px] font-medium px-1.5 py-0.5 rounded bg-[#e8e8f0] text-[#525261]">
+                          {d.tag}
+                        </span>
+                      </div>
+                      <div className="text-[10.5px] text-[#9a9aa0] font-mono">
+                        {d.date} · {d.spots}
+                      </div>
                     </div>
-                    <div className="text-[10.5px] text-[#9a9aa0] font-mono">
-                      {d.date} · {d.spots}
+                    <div className="text-right flex-none">
+                      <div className="text-[11px] font-bold font-mono text-[#6666ff]">
+                        +{d.xp} XP
+                      </div>
+                      {applied ? (
+                        <span className="mt-1 inline-block text-[11px] font-semibold px-2.5 py-1 rounded-lg bg-[#e8e8f0] text-[#525261]">
+                          申込済
+                        </span>
+                      ) : (
+                        <button
+                          onClick={() => setAppliedDuties((prev) => new Set(prev).add(i))}
+                          className="mt-1 text-[11px] font-semibold px-2.5 py-1 rounded-lg bg-[#1a1a1a] text-white"
+                        >
+                          申込
+                        </button>
+                      )}
                     </div>
                   </div>
-                  <div className="text-right flex-none">
-                    <div className="text-[11px] font-bold font-mono text-[#6666ff]">
-                      +{d.xp} XP
-                    </div>
-                    <button className="mt-1 text-[11px] font-semibold px-2.5 py-1 rounded-lg bg-[#1a1a1a] text-white">
-                      申込
-                    </button>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
             <div className="border-t border-[#dedee5]" />
@@ -1044,7 +1100,7 @@ export default function MyPage() {
             left={<BackButton onClick={() => setView("hub")} />}
             right={
               <button
-                onClick={() => setView("hub")}
+                onClick={handleEditSave}
                 className="text-[12px] font-semibold text-[#6666ff]"
               >
                 保存
@@ -1052,7 +1108,7 @@ export default function MyPage() {
             }
           />
           <div className="flex-1 overflow-y-auto p-4">
-            <EditProfileForm />
+            <EditProfileForm data={editDraft} onChange={setEditDraft} />
           </div>
         </div>
         <div className="hidden md:flex flex-col h-full">
@@ -1067,7 +1123,7 @@ export default function MyPage() {
                   キャンセル
                 </button>
                 <button
-                  onClick={() => setView("hub")}
+                  onClick={handleEditSave}
                   className="text-[12px] font-semibold px-3 py-1.5 rounded-lg bg-[#1a1a1a] text-white hover:bg-[#333] transition-colors"
                 >
                   保存
@@ -1077,7 +1133,7 @@ export default function MyPage() {
           />
           <div className="flex-1 overflow-y-auto">
             <div className="max-w-[560px] mx-auto p-6">
-              <EditProfileForm />
+              <EditProfileForm data={editDraft} onChange={setEditDraft} />
             </div>
           </div>
         </div>

@@ -1,3 +1,6 @@
+"use client";
+
+import { useState } from "react";
 import { Avatar } from "@/components/atoms/Avatar";
 import type { Vote } from "@/mocks/types";
 
@@ -17,6 +20,7 @@ interface RightPaneProps {
 }
 
 export function RightPane({ votes }: RightPaneProps) {
+  const [greeted, setGreeted] = useState<Set<string>>(new Set());
   const topVote = votes[0];
   const topPct = topVote ? Math.round((topVote.voted / topVote.total) * 100) : 0;
 
@@ -72,9 +76,18 @@ export function RightPane({ votes }: RightPaneProps) {
               <div className="text-[11.5px] font-semibold">{m.who}さん</div>
               <div className="text-[9.5px] text-[#9a9aa0]">{m.when}</div>
             </div>
-            <button className="text-[10px] px-2 py-[3px] rounded-[999px] border border-[#bbbbc0] text-[#525261] font-semibold hover:bg-white transition-colors">
-              挨拶
-            </button>
+            {greeted.has(m.who) ? (
+              <span className="text-[10px] px-2 py-[3px] rounded-[999px] bg-[#e8e8f0] text-[#9a9aa0] font-semibold">
+                送信済
+              </span>
+            ) : (
+              <button
+                onClick={() => setGreeted((prev) => new Set(prev).add(m.who))}
+                className="text-[10px] px-2 py-[3px] rounded-[999px] border border-[#bbbbc0] text-[#525261] font-semibold hover:bg-white transition-colors"
+              >
+                挨拶
+              </button>
+            )}
           </div>
         ))}
       </div>

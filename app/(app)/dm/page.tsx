@@ -7,7 +7,6 @@ import { RankBadge } from "@/components/atoms/RankBadge";
 import { EmptyState } from "@/components/atoms/EmptyState";
 import {
   DM_THREADS,
-  DM_SUGGESTIONS,
   getMessagesByThreadId,
 } from "@/mocks/dm";
 import { USERS, getUserById, CURRENT_USER_ID } from "@/mocks/users";
@@ -15,7 +14,7 @@ import type { DmThread, DmMessage } from "@/mocks/types";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type SpView = "list" | "thread" | "new" | "members";
+type SpView = "list" | "thread" | "new" | "members" | "group_settings";
 
 // ─── Member data for メンバータブ ─────────────────────────────────────────────
 
@@ -262,6 +261,18 @@ export default function DmPage() {
   const [pcShowToken, setPcShowToken] = useState(false);
   const [pcTokenAmt, setPcTokenAmt] = useState(50);
 
+  // Compose (new DM) state — shared between SP and PC
+  const [composeRecipients, setComposeRecipients] = useState<{ id: string; name: string; initial: string; tone: number }[]>([]);
+  const [composeQuery, setComposeQuery] = useState("");
+  const [composeInput, setComposeInput] = useState("");
+  const [pcCompose, setPcCompose] = useState(false);
+
+  // Group settings state
+  const [pcGroupSettings, setPcGroupSettings] = useState(false);
+  const [groupNameEdit, setGroupNameEdit] = useState("");
+  const [isEditingGroupName, setIsEditingGroupName] = useState(false);
+  const [addMemberQuery, setAddMemberQuery] = useState("");
+
   const selectedThread = threads.find((t) => t.id === selectedThreadId) ?? null;
   const currentMessages = selectedThreadId
     ? (messagesMap[selectedThreadId] ?? [])
@@ -329,6 +340,158 @@ export default function DmPage() {
     );
   };
 
+  // Create a new 1:1 thread
+  const createThread = (userId: string): string => {
+    const user = getUserById(userId);
+    const newId = `th_${Date.now()}`;
+    const newThread: DmThread = {
+      id: newId,
+      participantIds: [CURRENT_USER_ID, userId],
+      isGroup: false,
+      lastMessage: "",
+      lastMessageTime: "今",
+      unreadCount: 0,
+      isOnline: user?.isOnline ?? false,
+    };
+    setThreads((prev) => [newThread, ...prev]);
+    setMessagesMap((prev) => ({ ...prev, [newId]: [] }));
+    return newId;
+  };
+
+  // Create a group thread
+  const createGroupThread = (userIds: string[]): string => {
+    const newId = `th_${Date.now()}`;
+    const names = userIds.map((id) => getUserById(id)?.name.split(" ")[0] ?? "?");
+    const newThread: DmThread = {
+      id: newId,
+      participantIds: [CURRENT_USER_ID, ...userIds],
+      isGroup: true,
+      groupName: names.join(", "),
+      lastMessage: "",
+      lastMessageTime: "今",
+      unreadCount: 0,
+    };
+    setThreads((prev) => [newThread, ...prev]);
+    setMessagesMap((prev) => ({ ...prev, [newId]: [] }));
+    return newId;
+  };
+
+  // Open existing thread or create new one for a user
+  const openOrCreateThread = (userId: string) => {
+    const existing = threads.find(
+      (t) =>
+        !t.isGroup &&
+        t.participantIds.includes(userId) &&
+        t.participantIds.includes(CURRENT_USER_ID)
+    );
+    if (existing) return existing.id;
+    return createThread(userId);
+  };
+
+  // Start compose flow: create thread from recipients and send first message
+  const startComposedThread = (recipients: { id: string }[], firstMessage: string) => {
+    if (recipients.length === 0 || !firstMessage.trim()) return;
+    let threadId: string;
+    if (recipients.length === 1) {
+      threadId = openOrCreateThread(recipients[0].id);
+    } else {
+      threadId = createGroupThread(recipients.map((r) => r.id));
+    }
+    sendMessage(threadId, firstMessage);
+    return threadId;
+  };
+
+  // Reset compose state
+  const resetCompose = () => {
+    setComposeRecipients([]);
+    setComposeQuery("");
+    setComposeInput("");
+  };
+
+  // ─── Group management ───────────────────────────────────────────────────────
+
+  const renameGroup = (threadId: string, newName: string) => {
+    if (!newName.trim()) return;
+    setThreads((prev) =>
+      prev.map((t) => (t.id === threadId ? { ...t, groupName: newName.trim() } : t))
+    );
+    const seq = ++msgSeq.current;
+    const sysMsg: DmMessage = {
+      id: `msg-sys-${seq}`,
+      threadId,
+      senderId: "me",
+      kind: "system",
+      text: `グループ名が「${newName.trim()}」に変更されました`,
+      time: "今",
+    };
+    setMessagesMap((prev) => ({
+      ...prev,
+      [threadId]: [...(prev[threadId] ?? []), sysMsg],
+    }));
+  };
+
+  const addMemberToGroup = (threadId: string, userId: string) => {
+    const user = getUserById(userId);
+    if (!user) return;
+    setThreads((prev) =>
+      prev.map((t) =>
+        t.id === threadId
+          ? { ...t, participantIds: [...t.participantIds, userId] }
+          : t
+      )
+    );
+    const seq = ++msgSeq.current;
+    const sysMsg: DmMessage = {
+      id: `msg-sys-${seq}`,
+      threadId,
+      senderId: "me",
+      kind: "system",
+      text: `${user.name} がグループに追加されました`,
+      time: "今",
+    };
+    setMessagesMap((prev) => ({
+      ...prev,
+      [threadId]: [...(prev[threadId] ?? []), sysMsg],
+    }));
+  };
+
+  const removeMemberFromGroup = (threadId: string, userId: string) => {
+    const user = getUserById(userId);
+    if (!user) return;
+    setThreads((prev) =>
+      prev.map((t) =>
+        t.id === threadId
+          ? { ...t, participantIds: t.participantIds.filter((id) => id !== userId) }
+          : t
+      )
+    );
+    const seq = ++msgSeq.current;
+    const sysMsg: DmMessage = {
+      id: `msg-sys-${seq}`,
+      threadId,
+      senderId: "me",
+      kind: "system",
+      text: `${user.name} がグループから退出しました`,
+      time: "今",
+    };
+    setMessagesMap((prev) => ({
+      ...prev,
+      [threadId]: [...(prev[threadId] ?? []), sysMsg],
+    }));
+  };
+
+  const leaveGroup = (threadId: string) => {
+    setThreads((prev) =>
+      prev.map((t) =>
+        t.id === threadId
+          ? { ...t, participantIds: t.participantIds.filter((id) => id !== CURRENT_USER_ID) }
+          : t
+      )
+    );
+    // Remove thread from view
+    setThreads((prev) => prev.filter((t) => t.id !== threadId));
+  };
+
   // ─── SP Thread Header ───────────────────────────────────────────────────────
 
   function spThreadHeader(thread: DmThread) {
@@ -367,7 +530,14 @@ export default function DmPage() {
               : "オフライン"}
           </div>
         </div>
-        <button className="text-[16px] text-[#9a9aa0]">⋯</button>
+        {thread.isGroup && (
+          <button
+            onClick={() => setSpView("group_settings")}
+            className="text-[16px] text-[#9a9aa0]"
+          >
+            ⋯
+          </button>
+        )}
       </div>
     );
   }
@@ -498,15 +668,13 @@ export default function DmPage() {
     });
   }
 
-  // ─── Group member strip ─────────────────────────────────────────────────────
+  // ─── Group member strip (dynamic) ──────────────────────────────────────────
 
-  const groupMembers = [
-    { who: "田中", tone: 0 },
-    { who: "伊藤", tone: 1 },
-    { who: "佐藤", tone: 2 },
-    { who: "木村", tone: 3 },
-    { who: "高橋", tone: 4 },
-  ];
+  function getGroupMembers(thread: DmThread) {
+    return thread.participantIds
+      .map((id) => getUserById(id))
+      .filter((u): u is NonNullable<typeof u> => !!u);
+  }
 
   // ─── PC Section ───────────────────────────────────────────────────────────
 
@@ -524,7 +692,10 @@ export default function DmPage() {
               />
             </div>
             <button
-              onClick={() => setPcTab(1)}
+              onClick={() => {
+                resetCompose();
+                setPcCompose(true);
+              }}
               className="text-[12px] font-semibold px-3 py-1.5 rounded-lg bg-[#1a1a1a] text-white whitespace-nowrap"
             >
               + 新規DM
@@ -559,9 +730,10 @@ export default function DmPage() {
                 <ThreadRow
                   key={th.id}
                   thread={th}
-                  active={pcThreadId === th.id}
+                  active={!pcCompose && pcThreadId === th.id}
                   onClick={() => {
                     setPcThreadId(th.id);
+                    setPcCompose(false);
                     setThreads((prev) =>
                       prev.map((t) =>
                         t.id === th.id ? { ...t, unreadCount: 0 } : t
@@ -576,7 +748,7 @@ export default function DmPage() {
                   <span className="text-[#9a9aa0] font-mono tracking-wide">
                     {USERS.length} 人 · オンライン 3
                   </span>
-                  <span className="text-[#9a9aa0] cursor-pointer">並び替え ▾</span>
+                  <button onClick={() => alert("並び替え機能は今後実装予定です")} className="text-[#9a9aa0] cursor-pointer">並び替え ▾</button>
                 </div>
                 {USERS.filter((u) => u.id !== CURRENT_USER_ID).map((u) => {
                   const role = getMemberRole(u.id);
@@ -612,16 +784,10 @@ export default function DmPage() {
                       </div>
                       <button
                         onClick={() => {
-                          const existing = threads.find(
-                            (t) =>
-                              !t.isGroup &&
-                              t.participantIds.includes(u.id) &&
-                              t.participantIds.includes(CURRENT_USER_ID)
-                          );
-                          if (existing) {
-                            setPcThreadId(existing.id);
-                            setPcTab(0);
-                          }
+                          const threadId = openOrCreateThread(u.id);
+                          setPcThreadId(threadId);
+                          setPcCompose(false);
+                          setPcTab(0);
                         }}
                         className="flex-none text-[10px] font-semibold text-[#525261] px-2 py-1 rounded border border-[#dedee5] hover:border-[#9a9aa0] whitespace-nowrap"
                       >
@@ -635,9 +801,148 @@ export default function DmPage() {
           </div>
         </div>
 
-        {/* Right: conversation */}
+        {/* Right: conversation or compose */}
         <div className="flex-1 flex flex-col overflow-hidden">
-          {pcThread ? (
+          {pcCompose ? (
+            /* ── Compose new DM (Slack-style) ── */
+            (() => {
+              const selectedIds = new Set(composeRecipients.map((r) => r.id));
+              const candidates = USERS.filter(
+                (u) => u.id !== CURRENT_USER_ID && !selectedIds.has(u.id)
+              );
+              const filtered = composeQuery.trim()
+                ? candidates.filter((u) => u.name.includes(composeQuery.trim()))
+                : candidates;
+
+              return (
+                <>
+                  {/* To: field */}
+                  <div className="flex-none px-5 py-3 border-b border-[#dedee5]">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-[12px] font-semibold text-[#9a9aa0] flex-none">宛先:</span>
+                      {composeRecipients.map((r) => (
+                        <span
+                          key={r.id}
+                          className="flex items-center gap-1 text-[11px] font-semibold px-2 py-1 bg-[#eeeeff] text-[#6666ff] rounded-full"
+                        >
+                          {r.name}
+                          <button
+                            onClick={() =>
+                              setComposeRecipients((prev) => prev.filter((x) => x.id !== r.id))
+                            }
+                            className="text-[#9a9aa0] hover:text-[#525261] ml-0.5"
+                          >
+                            ✕
+                          </button>
+                        </span>
+                      ))}
+                      <input
+                        type="text"
+                        className="flex-1 text-[12px] outline-none bg-transparent placeholder:text-[#9a9aa0] min-w-[100px] py-1"
+                        placeholder={composeRecipients.length === 0 ? "名前を入力して検索..." : "追加..."}
+                        value={composeQuery}
+                        onChange={(e) => setComposeQuery(e.target.value)}
+                        autoFocus
+                      />
+                    </div>
+                  </div>
+
+                  {/* User suggestions or empty conversation area */}
+                  {composeQuery.trim() || composeRecipients.length === 0 ? (
+                    <div className="flex-1 overflow-y-auto">
+                      {composeRecipients.length === 0 && !composeQuery.trim() && (
+                        <div className="px-5 pt-4 pb-2 text-[10px] font-bold text-[#9a9aa0] tracking-widest font-mono">
+                          メンバー
+                        </div>
+                      )}
+                      {composeQuery.trim() && filtered.length === 0 && (
+                        <div className="px-5 py-8 text-center text-[12px] text-[#9a9aa0]">
+                          該当するメンバーが見つかりません
+                        </div>
+                      )}
+                      {(composeQuery.trim() ? filtered : candidates).map((u) => (
+                        <div
+                          key={u.id}
+                          onClick={() => {
+                            setComposeRecipients((prev) => [
+                              ...prev,
+                              { id: u.id, name: u.name, initial: u.initial, tone: u.tone },
+                            ]);
+                            setComposeQuery("");
+                          }}
+                          className="flex items-center gap-3 px-5 py-2.5 cursor-pointer hover:bg-[#fafafa] transition-colors"
+                        >
+                          <div className="relative flex-none">
+                            <Avatar size={32} label={u.initial} tone={u.tone} />
+                            {u.isOnline && (
+                              <span className="absolute bottom-0 right-0 w-2 h-2 rounded-full bg-[#5da177] border-2 border-white" />
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-[12px] font-semibold">{u.name}</div>
+                            <div className="text-[10px] text-[#9a9aa0]">{u.tags?.join(" · ")}</div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="flex-1 flex items-center justify-center bg-[#fafafa]">
+                      <div className="text-center">
+                        <div className="text-[13px] font-semibold text-[#525261]">
+                          {composeRecipients.length === 1
+                            ? `${composeRecipients[0].name} にメッセージを送信`
+                            : `${composeRecipients.length}人のグループDM`}
+                        </div>
+                        <div className="text-[11px] text-[#9a9aa0] mt-1">
+                          下のフィールドからメッセージを送信してください
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Compose input */}
+                  {composeRecipients.length > 0 && (
+                    <div className="flex-none flex items-center gap-2 px-4 py-3.5 border-t border-[#dedee5] bg-white">
+                      <input
+                        type="text"
+                        className="flex-1 px-3.5 py-2 border border-[#dedee5] rounded-full text-[12px] outline-none bg-[#f1f1f5] focus:border-[#9a9aa0] placeholder:text-[#9a9aa0]"
+                        placeholder="メッセージを入力…"
+                        value={composeInput}
+                        onChange={(e) => setComposeInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+                            e.preventDefault();
+                            if (!composeInput.trim()) return;
+                            const threadId = startComposedThread(composeRecipients, composeInput);
+                            if (threadId) {
+                              setPcThreadId(threadId);
+                              setPcCompose(false);
+                              resetCompose();
+                            }
+                          }
+                        }}
+                      />
+                      <button
+                        onClick={() => {
+                          if (!composeInput.trim()) return;
+                          const threadId = startComposedThread(composeRecipients, composeInput);
+                          if (threadId) {
+                            setPcThreadId(threadId);
+                            setPcCompose(false);
+                            resetCompose();
+                          }
+                        }}
+                        disabled={!composeInput.trim()}
+                        className="text-[12px] font-semibold px-3 py-1.5 rounded-lg bg-[#1a1a1a] text-white disabled:opacity-30 whitespace-nowrap"
+                      >
+                        送信
+                      </button>
+                    </div>
+                  )}
+                </>
+              );
+            })()
+          ) : pcThread ? (
             <>
               {/* Conversation header */}
               <div className="flex-none flex items-center gap-2.5 px-5 py-3 border-b border-[#dedee5]">
@@ -660,94 +965,293 @@ export default function DmPage() {
                     {pcThread.isOnline ? "オンライン · 最終ログイン 5分前" : "オフライン"}
                   </div>
                 </div>
-                <button className="text-[12px] font-semibold text-[#525261] px-3 py-1.5 rounded-lg hover:bg-[#f1f1f5] transition-colors">
-                  プロフィール
-                </button>
-                <button className="text-[12px] font-semibold text-[#525261] px-2 py-1.5 rounded-lg hover:bg-[#f1f1f5] transition-colors">
-                  ⋯
-                </button>
-              </div>
-
-              {/* Messages */}
-              <div className="flex-1 overflow-y-auto px-5 py-3.5 flex flex-col gap-2.5 bg-[#fafafa]">
-                {pcMessages.map((m) =>
-                  pcThread.isGroup ? (
-                    <GroupMessageBubble key={m.id} msg={m} showSender={m.senderId !== "me"} />
-                  ) : (
-                    <MessageBubble key={m.id} msg={m} />
-                  )
+                {!pcThread.isGroup && (
+                  <button
+                    onClick={() => {
+                      const otherId = pcThread.participantIds.find((id) => id !== CURRENT_USER_ID);
+                      const other = otherId ? getUserById(otherId) : undefined;
+                      if (other) {
+                        alert(`${other.name}\nランク: ${other.rank === "premium" ? "プレミアム" : "ベーシック"}\nXP: ${other.xp}\nDAO: ${other.daoBalance}\nタグ: ${other.tags?.join(", ") ?? "なし"}\n${other.bio ?? ""}`);
+                      }
+                    }}
+                    className="text-[12px] font-semibold text-[#525261] px-3 py-1.5 rounded-lg hover:bg-[#f1f1f5] transition-colors"
+                  >
+                    プロフィール
+                  </button>
+                )}
+                {pcThread.isGroup && (
+                  <button
+                    onClick={() => {
+                      setGroupNameEdit(pcThread.groupName ?? "");
+                      setIsEditingGroupName(false);
+                      setAddMemberQuery("");
+                      setPcGroupSettings((v) => !v);
+                    }}
+                    className={`text-[12px] font-semibold px-2 py-1.5 rounded-lg transition-colors ${
+                      pcGroupSettings
+                        ? "bg-[#1a1a1a] text-white"
+                        : "text-[#525261] hover:bg-[#f1f1f5]"
+                    }`}
+                  >
+                    ⋯
+                  </button>
                 )}
               </div>
 
-              {/* Token panel (PC) */}
-              {pcShowToken && (
-                <div className="flex-none px-4 py-3 border-t border-[#dedee5] bg-[#f1f1f5]">
-                  <div className="text-[11px] font-semibold text-[#525261] mb-2">
-                    ◈ トークン同梱
+              {/* Messages + optional settings side panel */}
+              <div className="flex flex-1 overflow-hidden">
+                {/* Chat column */}
+                <div className="flex-1 flex flex-col overflow-hidden min-w-0">
+                  {/* Messages */}
+                  <div className="flex-1 overflow-y-auto px-5 py-3.5 flex flex-col gap-2.5 bg-[#fafafa]">
+                    {pcMessages.map((m) =>
+                      pcThread.isGroup ? (
+                        <GroupMessageBubble key={m.id} msg={m} showSender={m.senderId !== "me"} />
+                      ) : (
+                        <MessageBubble key={m.id} msg={m} />
+                      )
+                    )}
                   </div>
-                  <div className="flex items-center gap-2">
-                    {[10, 50, 100, 200, 500].map((v) => (
-                      <button
-                        key={v}
-                        onClick={() => setPcTokenAmt(v)}
-                        className={`text-[11px] font-mono font-bold px-2.5 py-1 rounded-full border transition-colors ${
-                          pcTokenAmt === v
-                            ? "bg-[#1a1a1a] text-white border-[#1a1a1a]"
-                            : "bg-white text-[#525261] border-[#dedee5]"
-                        }`}
-                      >
-                        {v}
-                      </button>
-                    ))}
+
+                  {/* Token panel (PC) */}
+                  {pcShowToken && (
+                    <div className="flex-none px-4 py-3 border-t border-[#dedee5] bg-[#f1f1f5]">
+                      <div className="text-[11px] font-semibold text-[#525261] mb-2">
+                        ◈ トークン同梱
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {[10, 50, 100, 200, 500].map((v) => (
+                          <button
+                            key={v}
+                            onClick={() => setPcTokenAmt(v)}
+                            className={`text-[11px] font-mono font-bold px-2.5 py-1 rounded-full border transition-colors ${
+                              pcTokenAmt === v
+                                ? "bg-[#1a1a1a] text-white border-[#1a1a1a]"
+                                : "bg-white text-[#525261] border-[#dedee5]"
+                            }`}
+                          >
+                            {v}
+                          </button>
+                        ))}
+                        <button
+                          onClick={() => {
+                            sendToken(pcThreadId, pcTokenAmt);
+                            setPcShowToken(false);
+                          }}
+                          className="ml-2 px-3 py-1.5 bg-[#1a1a1a] text-white rounded-lg text-[11px] font-semibold whitespace-nowrap"
+                        >
+                          {pcTokenAmt} DAO 送る
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Input bar (PC) */}
+                  <div className="flex-none flex items-center gap-2 px-4 py-3.5 border-t border-[#dedee5] bg-white">
+                    <button
+                      onClick={() => setPcShowToken((v) => !v)}
+                      className={`text-[12px] font-semibold px-3 py-1.5 rounded-lg border transition-colors whitespace-nowrap ${
+                        pcShowToken
+                          ? "bg-[#1a1a1a] text-white border-[#1a1a1a]"
+                          : "text-[#525261] border-[#dedee5] hover:border-[#9a9aa0]"
+                      }`}
+                    >
+                      ◈ トークン同梱
+                    </button>
+                    <input
+                      type="text"
+                      className="flex-1 px-3.5 py-2 border border-[#dedee5] rounded-full text-[12px] outline-none bg-[#f1f1f5] focus:border-[#9a9aa0] placeholder:text-[#9a9aa0]"
+                      placeholder="メッセージを入力…"
+                      value={pcInput}
+                      onChange={(e) => setPcInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && !e.shiftKey) {
+                          e.preventDefault();
+                          sendMessage(pcThreadId, pcInput);
+                          setPcInput("");
+                        }
+                      }}
+                    />
                     <button
                       onClick={() => {
-                        sendToken(pcThreadId, pcTokenAmt);
-                        setPcShowToken(false);
+                        sendMessage(pcThreadId, pcInput);
+                        setPcInput("");
                       }}
-                      className="ml-2 px-3 py-1.5 bg-[#1a1a1a] text-white rounded-lg text-[11px] font-semibold whitespace-nowrap"
+                      disabled={!pcInput.trim()}
+                      className="text-[12px] font-semibold px-3 py-1.5 rounded-lg bg-[#1a1a1a] text-white disabled:opacity-30 whitespace-nowrap"
                     >
-                      {pcTokenAmt} DAO 送る
+                      送信
                     </button>
                   </div>
                 </div>
-              )}
 
-              {/* Input bar (PC) */}
-              <div className="flex-none flex items-center gap-2 px-4 py-3.5 border-t border-[#dedee5] bg-white">
-                <button
-                  onClick={() => setPcShowToken((v) => !v)}
-                  className={`text-[12px] font-semibold px-3 py-1.5 rounded-lg border transition-colors whitespace-nowrap ${
-                    pcShowToken
-                      ? "bg-[#1a1a1a] text-white border-[#1a1a1a]"
-                      : "text-[#525261] border-[#dedee5] hover:border-[#9a9aa0]"
-                  }`}
-                >
-                  ◈ トークン同梱
-                </button>
-                <input
-                  type="text"
-                  className="flex-1 px-3.5 py-2 border border-[#dedee5] rounded-full text-[12px] outline-none bg-[#f1f1f5] focus:border-[#9a9aa0] placeholder:text-[#9a9aa0]"
-                  placeholder="メッセージを入力…"
-                  value={pcInput}
-                  onChange={(e) => setPcInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey) {
-                      e.preventDefault();
-                      sendMessage(pcThreadId, pcInput);
-                      setPcInput("");
-                    }
-                  }}
-                />
-                <button
-                  onClick={() => {
-                    sendMessage(pcThreadId, pcInput);
-                    setPcInput("");
-                  }}
-                  disabled={!pcInput.trim()}
-                  className="text-[12px] font-semibold px-3 py-1.5 rounded-lg bg-[#1a1a1a] text-white disabled:opacity-30 whitespace-nowrap"
-                >
-                  送信
-                </button>
+                {/* ── PC Group Settings Side Panel ── */}
+                {pcGroupSettings && pcThread.isGroup && (() => {
+                  const members = getGroupMembers(pcThread);
+                  const memberIds = new Set(pcThread.participantIds);
+                  const addCandidates = USERS.filter(
+                    (u) => !memberIds.has(u.id)
+                  );
+                  const filteredAdd = addMemberQuery.trim()
+                    ? addCandidates.filter((u) => u.name.includes(addMemberQuery.trim()))
+                    : [];
+
+                  return (
+                    <div className="w-[280px] flex-none border-l border-[#dedee5] flex flex-col overflow-hidden bg-white">
+                      {/* Panel header */}
+                      <div className="flex-none flex items-center justify-between px-4 py-3 border-b border-[#dedee5]">
+                        <span className="text-[13px] font-bold">グループ設定</span>
+                        <button
+                          onClick={() => setPcGroupSettings(false)}
+                          className="text-[14px] text-[#9a9aa0] hover:text-[#525261]"
+                        >
+                          ✕
+                        </button>
+                      </div>
+
+                      <div className="flex-1 overflow-y-auto">
+                        {/* Group avatar + name */}
+                        <div className="flex flex-col items-center py-5 border-b border-[#dedee5]">
+                          <div className="w-14 h-14 rounded-xl bg-[#e8e8f0] flex items-center justify-center text-[20px] font-bold text-[#525261] mb-3">
+                            G
+                          </div>
+                          {isEditingGroupName ? (
+                            <div className="flex items-center gap-1.5 px-4 w-full">
+                              <input
+                                type="text"
+                                className="flex-1 text-[13px] font-bold text-center border border-[#dedee5] rounded-lg px-2 py-1.5 outline-none focus:border-[#6666ff]"
+                                value={groupNameEdit}
+                                onChange={(e) => setGroupNameEdit(e.target.value)}
+                                autoFocus
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") {
+                                    renameGroup(pcThreadId, groupNameEdit);
+                                    setIsEditingGroupName(false);
+                                  }
+                                  if (e.key === "Escape") setIsEditingGroupName(false);
+                                }}
+                              />
+                              <button
+                                onClick={() => {
+                                  renameGroup(pcThreadId, groupNameEdit);
+                                  setIsEditingGroupName(false);
+                                }}
+                                className="text-[11px] font-semibold text-white bg-[#1a1a1a] px-2.5 py-1.5 rounded-lg"
+                              >
+                                保存
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => {
+                                setGroupNameEdit(pcThread.groupName ?? "");
+                                setIsEditingGroupName(true);
+                              }}
+                              className="text-[13px] font-bold hover:text-[#6666ff] transition-colors flex items-center gap-1"
+                            >
+                              {pcThread.groupName ?? "グループ"}
+                              <span className="text-[10px] text-[#9a9aa0]">✎</span>
+                            </button>
+                          )}
+                          <div className="text-[10px] text-[#9a9aa0] mt-1">
+                            メンバー {members.length}人
+                          </div>
+                        </div>
+
+                        {/* Add member */}
+                        <div className="px-4 py-3 border-b border-[#dedee5]">
+                          <div className="text-[10px] font-bold text-[#9a9aa0] tracking-wider mb-2">
+                            メンバーを追加
+                          </div>
+                          <input
+                            type="text"
+                            className="w-full px-3 py-2 text-[12px] border border-[#dedee5] rounded-lg outline-none focus:border-[#6666ff] placeholder:text-[#9a9aa0] bg-[#f1f1f5]"
+                            placeholder="名前で検索..."
+                            value={addMemberQuery}
+                            onChange={(e) => setAddMemberQuery(e.target.value)}
+                          />
+                          {addMemberQuery.trim() && (
+                            <div className="mt-1.5 max-h-[140px] overflow-y-auto">
+                              {filteredAdd.length === 0 ? (
+                                <div className="text-[11px] text-[#9a9aa0] py-2 text-center">
+                                  見つかりません
+                                </div>
+                              ) : (
+                                filteredAdd.map((u) => (
+                                  <div
+                                    key={u.id}
+                                    onClick={() => {
+                                      addMemberToGroup(pcThreadId, u.id);
+                                      setAddMemberQuery("");
+                                    }}
+                                    className="flex items-center gap-2 py-1.5 px-1 cursor-pointer hover:bg-[#fafafa] rounded-md transition-colors"
+                                  >
+                                    <Avatar size={24} label={u.initial} tone={u.tone} />
+                                    <span className="text-[11px] font-semibold flex-1">{u.name}</span>
+                                    <span className="text-[10px] text-[#6666ff] font-semibold">追加</span>
+                                  </div>
+                                ))
+                              )}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Member list */}
+                        <div className="px-4 py-3">
+                          <div className="text-[10px] font-bold text-[#9a9aa0] tracking-wider mb-2">
+                            メンバー ({members.length})
+                          </div>
+                          <div className="flex flex-col gap-0.5">
+                            {members.map((u) => {
+                              const isMe = u.id === CURRENT_USER_ID;
+                              return (
+                                <div
+                                  key={u.id}
+                                  className="flex items-center gap-2.5 py-2 px-1 rounded-md"
+                                >
+                                  <div className="relative flex-none">
+                                    <Avatar size={28} label={u.initial} tone={u.tone} />
+                                    {u.isOnline && (
+                                      <span className="absolute bottom-0 right-0 w-2 h-2 rounded-full bg-[#5da177] border-[1.5px] border-white" />
+                                    )}
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <span className="text-[11.5px] font-semibold truncate block">
+                                      {u.name}
+                                      {isMe && <span className="text-[#9a9aa0] font-normal"> (自分)</span>}
+                                    </span>
+                                  </div>
+                                  {!isMe && (
+                                    <button
+                                      onClick={() => removeMemberFromGroup(pcThreadId, u.id)}
+                                      className="flex-none text-[10px] font-semibold text-[#e55] px-2 py-1 rounded border border-[#fcc] hover:bg-[#fff5f5] transition-colors"
+                                    >
+                                      退出
+                                    </button>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Leave group */}
+                      <div className="flex-none px-4 py-3 border-t border-[#dedee5]">
+                        <button
+                          onClick={() => {
+                            leaveGroup(pcThreadId);
+                            setPcGroupSettings(false);
+                            setPcThreadId(threads[0]?.id ?? "");
+                          }}
+                          className="w-full py-2 text-[12px] font-semibold text-[#e55] border border-[#fcc] rounded-lg hover:bg-[#fff5f5] transition-colors"
+                        >
+                          グループを退出
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
             </>
           ) : (
@@ -769,17 +1273,9 @@ export default function DmPage() {
     return (
       <div className="flex flex-col h-full">
         {/* SP */}
-        <div className="md:hidden flex flex-col h-full">
+        <div className="md:hidden flex flex-col h-full relative">
           <TopBar
             title="メッセージ"
-            right={
-              <button
-                onClick={() => setSpView("new")}
-                className="text-[18px] text-[#525261]"
-              >
-                ✎
-              </button>
-            }
           />
           {/* Tabs */}
           <div className="flex-none flex border-b border-[#dedee5]">
@@ -825,9 +1321,9 @@ export default function DmPage() {
                 <span className="text-[11px] text-[#9a9aa0] font-mono tracking-wide">
                   312人 · オンライン 24
                 </span>
-                <span className="text-[10px] text-[#9a9aa0] cursor-pointer">
+                <button onClick={() => alert("並び替え機能は今後実装予定です")} className="text-[10px] text-[#9a9aa0] cursor-pointer">
                   並び替え ▾
-                </span>
+                </button>
               </div>
               {/* Filter chips */}
               <div className="flex-none flex gap-1.5 px-4 pb-2 overflow-x-auto">
@@ -847,17 +1343,20 @@ export default function DmPage() {
               {/* Member list */}
               <div className="flex-1 overflow-y-auto">
                 {memberList((userId) => {
-                  const existing = threads.find(
-                    (t) =>
-                      !t.isGroup &&
-                      t.participantIds.includes(userId) &&
-                      t.participantIds.includes(CURRENT_USER_ID)
-                  );
-                  if (existing) openThread(existing.id);
+                  const threadId = openOrCreateThread(userId);
+                  openThread(threadId);
                 })}
               </div>
             </>
           )}
+
+          {/* FAB: new message */}
+          <button
+            onClick={() => setSpView("new")}
+            className="absolute bottom-20 right-4 w-14 h-14 rounded-full bg-[#1a1a1a] text-white flex items-center justify-center text-[28px] shadow-lg active:scale-95 transition-transform z-10"
+          >
+            +
+          </button>
         </div>
 
         {pcSection}
@@ -875,22 +1374,22 @@ export default function DmPage() {
           {spThreadHeader(selectedThread)}
 
           {/* Group member strip */}
-          {isGroup && (
-            <div className="flex-none flex items-center gap-2 px-4 py-2 border-b border-[#dedee5] bg-[#f1f1f5] overflow-x-auto">
-              {groupMembers.map((m) => (
-                <div
-                  key={m.who}
-                  className="flex-none flex flex-col items-center gap-0.5"
-                >
-                  <Avatar size={28} label={m.who[0]} tone={m.tone} />
-                  <span className="text-[9px] text-[#525261]">{m.who}</span>
-                </div>
-              ))}
-              <div className="flex-none w-7 h-7 rounded-full border border-dashed border-[#bbbbc0] flex items-center justify-center text-[12px] text-[#9a9aa0]">
-                +7
+          {isGroup && (() => {
+            const members = getGroupMembers(selectedThread);
+            return (
+              <div className="flex-none flex items-center gap-2 px-4 py-2 border-b border-[#dedee5] bg-[#f1f1f5] overflow-x-auto">
+                {members.map((m) => (
+                  <div
+                    key={m.id}
+                    className="flex-none flex flex-col items-center gap-0.5"
+                  >
+                    <Avatar size={28} label={m.initial} tone={m.tone} />
+                    <span className="text-[9px] text-[#525261]">{m.name.split(" ")[0]}</span>
+                  </div>
+                ))}
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* Messages */}
           <div className="flex-1 overflow-y-auto px-3 py-3 flex flex-col gap-2 bg-[#f9f9fb]">
@@ -911,9 +1410,192 @@ export default function DmPage() {
     );
   }
 
+  // ─── SP: Group Settings ───────────────────────────────────────────────────
+
+  if (spView === "group_settings" && selectedThread?.isGroup) {
+    const members = getGroupMembers(selectedThread);
+    const memberIds = new Set(selectedThread.participantIds);
+    const addCandidates = USERS.filter((u) => !memberIds.has(u.id));
+    const filteredAdd = addMemberQuery.trim()
+      ? addCandidates.filter((u) => u.name.includes(addMemberQuery.trim()))
+      : [];
+
+    return (
+      <div className="flex flex-col h-full">
+        <div className="md:hidden flex flex-col h-full bg-white">
+          <TopBar
+            title="グループ設定"
+            left={
+              <button
+                onClick={() => {
+                  setSpView("thread");
+                  setIsEditingGroupName(false);
+                  setAddMemberQuery("");
+                }}
+                className="text-[18px] text-[#525261]"
+              >
+                ←
+              </button>
+            }
+          />
+
+          <div className="flex-1 overflow-y-auto">
+            {/* Group avatar + name */}
+            <div className="flex flex-col items-center py-6 border-b border-[#dedee5]">
+              <div className="w-16 h-16 rounded-xl bg-[#e8e8f0] flex items-center justify-center text-[24px] font-bold text-[#525261] mb-3">
+                G
+              </div>
+              {isEditingGroupName ? (
+                <div className="flex items-center gap-2 px-6 w-full">
+                  <input
+                    type="text"
+                    className="flex-1 text-[14px] font-bold text-center border border-[#dedee5] rounded-lg px-3 py-2 outline-none focus:border-[#6666ff]"
+                    value={groupNameEdit}
+                    onChange={(e) => setGroupNameEdit(e.target.value)}
+                    autoFocus
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !e.nativeEvent.isComposing) {
+                        renameGroup(selectedThread.id, groupNameEdit);
+                        setIsEditingGroupName(false);
+                      }
+                      if (e.key === "Escape") setIsEditingGroupName(false);
+                    }}
+                  />
+                  <button
+                    onClick={() => {
+                      renameGroup(selectedThread.id, groupNameEdit);
+                      setIsEditingGroupName(false);
+                    }}
+                    className="text-[12px] font-semibold text-white bg-[#1a1a1a] px-3 py-2 rounded-lg"
+                  >
+                    保存
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => {
+                    setGroupNameEdit(selectedThread.groupName ?? "");
+                    setIsEditingGroupName(true);
+                  }}
+                  className="text-[15px] font-bold flex items-center gap-1.5"
+                >
+                  {selectedThread.groupName ?? "グループ"}
+                  <span className="text-[11px] text-[#9a9aa0]">✎</span>
+                </button>
+              )}
+              <div className="text-[11px] text-[#9a9aa0] mt-1">
+                メンバー {members.length}人
+              </div>
+            </div>
+
+            {/* Add member */}
+            <div className="px-4 py-4 border-b border-[#dedee5]">
+              <div className="text-[11px] font-bold text-[#9a9aa0] tracking-wider mb-2">
+                メンバーを追加
+              </div>
+              <input
+                type="text"
+                className="w-full px-3 py-2.5 text-[13px] border border-[#dedee5] rounded-lg outline-none focus:border-[#6666ff] placeholder:text-[#9a9aa0] bg-[#f1f1f5]"
+                placeholder="名前で検索..."
+                value={addMemberQuery}
+                onChange={(e) => setAddMemberQuery(e.target.value)}
+              />
+              {addMemberQuery.trim() && (
+                <div className="mt-2">
+                  {filteredAdd.length === 0 ? (
+                    <div className="text-[12px] text-[#9a9aa0] py-3 text-center">
+                      見つかりません
+                    </div>
+                  ) : (
+                    filteredAdd.map((u) => (
+                      <div
+                        key={u.id}
+                        onClick={() => {
+                          addMemberToGroup(selectedThread.id, u.id);
+                          setAddMemberQuery("");
+                        }}
+                        className="flex items-center gap-3 py-2.5 cursor-pointer hover:bg-[#fafafa] rounded-lg transition-colors"
+                      >
+                        <Avatar size={32} label={u.initial} tone={u.tone} />
+                        <span className="text-[12.5px] font-semibold flex-1">{u.name}</span>
+                        <span className="text-[11px] text-[#6666ff] font-semibold">+ 追加</span>
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Member list */}
+            <div className="px-4 py-4">
+              <div className="text-[11px] font-bold text-[#9a9aa0] tracking-wider mb-2">
+                メンバー ({members.length})
+              </div>
+              {members.map((u) => {
+                const isMe = u.id === CURRENT_USER_ID;
+                return (
+                  <div
+                    key={u.id}
+                    className="flex items-center gap-3 py-3 border-b border-[#f1f1f5]"
+                  >
+                    <div className="relative flex-none">
+                      <Avatar size={36} label={u.initial} tone={u.tone} />
+                      {u.isOnline && (
+                        <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-[#5da177] border-2 border-white" />
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[13px] font-semibold">
+                        {u.name}
+                        {isMe && <span className="text-[#9a9aa0] font-normal text-[11px]"> (自分)</span>}
+                      </div>
+                      <div className="text-[10.5px] text-[#9a9aa0]">{u.tags?.join(" · ")}</div>
+                    </div>
+                    {!isMe && (
+                      <button
+                        onClick={() => removeMemberFromGroup(selectedThread.id, u.id)}
+                        className="flex-none text-[11px] font-semibold text-[#e55] px-3 py-1.5 rounded-full border border-[#fcc] hover:bg-[#fff5f5] transition-colors"
+                      >
+                        退出させる
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Leave group */}
+          <div className="flex-none px-4 py-3 border-t border-[#dedee5] bg-white">
+            <button
+              onClick={() => {
+                leaveGroup(selectedThread.id);
+                setSpView("list");
+              }}
+              className="w-full py-3 text-[13px] font-semibold text-[#e55] border border-[#fcc] rounded-lg hover:bg-[#fff5f5] transition-colors"
+            >
+              グループを退出
+            </button>
+          </div>
+        </div>
+
+        {pcSection}
+      </div>
+    );
+  }
+
   // ─── SP: New DM ────────────────────────────────────────────────────────────
 
   if (spView === "new") {
+    const selectedIds = new Set(composeRecipients.map((r) => r.id));
+    const candidates = USERS.filter(
+      (u) => u.id !== CURRENT_USER_ID && !selectedIds.has(u.id)
+    );
+    const filtered = composeQuery.trim()
+      ? candidates.filter((u) => u.name.includes(composeQuery.trim()))
+      : candidates;
+    const showUserList = composeQuery.trim() || composeRecipients.length === 0;
+
     return (
       <div className="flex flex-col h-full">
         <div className="md:hidden flex flex-col h-full bg-white">
@@ -921,7 +1603,10 @@ export default function DmPage() {
             title="新しいメッセージ"
             left={
               <button
-                onClick={() => setSpView("list")}
+                onClick={() => {
+                  setSpView("list");
+                  resetCompose();
+                }}
                 className="text-[18px] text-[#525261]"
               >
                 ✕
@@ -932,41 +1617,124 @@ export default function DmPage() {
           <div className="flex-none px-4 py-3 border-b border-[#dedee5]">
             <div className="text-[11px] font-semibold text-[#525261] mb-1.5">宛先</div>
             <div className="flex items-center gap-1.5 flex-wrap px-2 py-2 border border-[#dedee5] rounded-lg min-h-9">
-              <span className="flex items-center gap-1 text-[11px] px-2 py-0.5 bg-[#e8e8f0] rounded-full">
-                伊藤 さくら <span className="text-[#9a9aa0] cursor-pointer">✕</span>
-              </span>
-              <span className="text-[12px] text-[#9a9aa0]">名前またはIDを入力</span>
+              {composeRecipients.map((r) => (
+                <span
+                  key={r.id}
+                  className="flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 bg-[#eeeeff] text-[#6666ff] rounded-full"
+                >
+                  {r.name}
+                  <button
+                    onClick={() =>
+                      setComposeRecipients((prev) => prev.filter((x) => x.id !== r.id))
+                    }
+                    className="text-[#9a9aa0] hover:text-[#525261] ml-0.5"
+                  >
+                    ✕
+                  </button>
+                </span>
+              ))}
+              <input
+                type="text"
+                className="flex-1 text-[12px] outline-none bg-transparent placeholder:text-[#9a9aa0] min-w-[100px]"
+                placeholder={composeRecipients.length === 0 ? "名前を入力して検索..." : "追加..."}
+                value={composeQuery}
+                onChange={(e) => setComposeQuery(e.target.value)}
+                autoFocus
+              />
             </div>
           </div>
 
-          {/* Suggestions */}
-          <div className="px-4 pt-3 pb-1.5 text-[10px] font-bold text-[#9a9aa0] tracking-widest font-mono">
-            最近のやり取り
-          </div>
-          <div className="flex-1 overflow-y-auto">
-            {DM_SUGGESTIONS.map((s) => (
-              <div
-                key={s.userId}
-                onClick={() => {
-                  const existing = threads.find(
-                    (t) =>
-                      !t.isGroup &&
-                      t.participantIds.includes(s.userId) &&
-                      t.participantIds.includes(CURRENT_USER_ID)
-                  );
-                  if (existing) openThread(existing.id);
-                }}
-                className="flex items-center gap-3 px-4 py-2.5 cursor-pointer hover:bg-[#fafafa] transition-colors"
-              >
-                <Avatar size={36} label={s.name[0]} tone={s.tone} />
-                <div className="flex-1 min-w-0">
-                  <div className="text-[12.5px] font-semibold">{s.name}</div>
-                  <div className="text-[10.5px] text-[#9a9aa0] mt-0.5">{s.sub}</div>
+          {/* User suggestions or prompt area */}
+          {showUserList ? (
+            <div className="flex-1 overflow-y-auto">
+              {composeQuery.trim() && filtered.length === 0 ? (
+                <div className="px-4 py-8 text-center text-[12px] text-[#9a9aa0]">
+                  該当するメンバーが見つかりません
                 </div>
-                <span className="text-[16px] text-[#9a9aa0]">+</span>
+              ) : (
+                <>
+                  <div className="px-4 pt-3 pb-1.5 text-[10px] font-bold text-[#9a9aa0] tracking-widest font-mono">
+                    {composeQuery.trim() ? "検索結果" : "メンバー"}
+                  </div>
+                  {(composeQuery.trim() ? filtered : candidates).map((u) => (
+                    <div
+                      key={u.id}
+                      onClick={() => {
+                        setComposeRecipients((prev) => [
+                          ...prev,
+                          { id: u.id, name: u.name, initial: u.initial, tone: u.tone },
+                        ]);
+                        setComposeQuery("");
+                      }}
+                      className="flex items-center gap-3 px-4 py-2.5 cursor-pointer hover:bg-[#fafafa] transition-colors"
+                    >
+                      <div className="relative flex-none">
+                        <Avatar size={36} label={u.initial} tone={u.tone} />
+                        {u.isOnline && (
+                          <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-[#5da177] border-2 border-white" />
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-[12.5px] font-semibold">{u.name}</div>
+                        <div className="text-[10.5px] text-[#9a9aa0] mt-0.5">{u.tags?.join(" · ")}</div>
+                      </div>
+                    </div>
+                  ))}
+                </>
+              )}
+            </div>
+          ) : (
+            <div className="flex-1 flex items-center justify-center bg-[#f9f9fb]">
+              <div className="text-center">
+                <div className="text-[13px] font-semibold text-[#525261]">
+                  {composeRecipients.length === 1
+                    ? `${composeRecipients[0].name} にメッセージを送信`
+                    : `${composeRecipients.length}人のグループDM`}
+                </div>
+                <div className="text-[11px] text-[#9a9aa0] mt-1">
+                  メッセージを入力して送信してください
+                </div>
               </div>
-            ))}
-          </div>
+            </div>
+          )}
+
+          {/* Message input (shown when recipients selected) */}
+          {composeRecipients.length > 0 && (
+            <div className="flex-none flex items-center gap-2 px-3 py-2 border-t border-[#dedee5] bg-white">
+              <input
+                type="text"
+                className="flex-1 px-3 py-2 bg-[#f1f1f5] rounded-full text-[12px] outline-none placeholder:text-[#9a9aa0]"
+                placeholder="メッセージを入力..."
+                value={composeInput}
+                onChange={(e) => setComposeInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+                    e.preventDefault();
+                    if (!composeInput.trim()) return;
+                    const threadId = startComposedThread(composeRecipients, composeInput);
+                    if (threadId) {
+                      resetCompose();
+                      openThread(threadId);
+                    }
+                  }
+                }}
+              />
+              <button
+                onClick={() => {
+                  if (!composeInput.trim()) return;
+                  const threadId = startComposedThread(composeRecipients, composeInput);
+                  if (threadId) {
+                    resetCompose();
+                    openThread(threadId);
+                  }
+                }}
+                disabled={!composeInput.trim()}
+                className="w-8 h-8 rounded-full bg-[#1a1a1a] text-white flex items-center justify-center text-[14px] disabled:opacity-30 transition-opacity"
+              >
+                ↑
+              </button>
+            </div>
+          )}
         </div>
 
         {pcSection}

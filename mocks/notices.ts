@@ -1,4 +1,4 @@
-import type { Notice, BoardPost, Vote } from "./types";
+import type { Notice, BoardPost, BoardComment, Vote } from "./types";
 import type { Announcement } from "@/components/atoms/AnnouncementBar";
 
 // ─── お知らせ ─────────────────────────────────────────────────────────────
@@ -95,6 +95,30 @@ export const BOARD_POSTS: BoardPost[] = [
     title:      "チラシ配布スタッフ募集",
     body:       "配布エリア応相談、約2時間。",
     isUnread:   false,
+  },
+];
+
+// ─── 掲示板コメント ─────────────────────────────────────────────────────────
+export const BOARD_COMMENTS: BoardComment[] = [
+  {
+    id: "bc1", postId: "bp1", authorId: "u2", authorName: "伊藤",
+    tone: 1, xp: 4820, text: "土曜の朝なら手伝えます！何時集合ですか？", time: "8分前",
+  },
+  {
+    id: "bc2", postId: "bp1", authorId: "u3", authorName: "佐藤",
+    tone: 2, xp: 980, text: "ペンキの色は何色ですか？前回残ったのがあれば持っていきます。", time: "5分前",
+  },
+  {
+    id: "bc3", postId: "bp2", authorId: "u1", authorName: "田中",
+    tone: 0, xp: 1240, text: "ぜひ参加したいです！予約はどうすればいいですか？", time: "45分前",
+  },
+  {
+    id: "bc4", postId: "bp2", authorId: "u5", authorName: "高橋",
+    tone: 4, xp: 3200, text: "前回も美味しかったので楽しみです。", time: "30分前",
+  },
+  {
+    id: "bc5", postId: "bp3", authorId: "u4", authorName: "木村",
+    tone: 3, xp: 620, text: "ありがとうございます、明日取りに行ってもいいですか？", time: "2時間前",
   },
 ];
 

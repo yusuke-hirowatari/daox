@@ -146,7 +146,8 @@ export function AdminTable({
   rowHeight?: number;
 }) {
   return (
-    <div className="border border-[#dedee5] rounded-[10px] overflow-hidden bg-white">
+    <div className="border border-[#dedee5] rounded-[10px] overflow-hidden bg-white overflow-x-auto">
+      <div className="min-w-[640px]">
       {/* Header */}
       <div
         className="flex px-3.5 bg-[#f1f1f5] border-b border-[#dedee5] text-[10.5px] text-[#9a9aa0] font-mono tracking-[0.5px] font-semibold items-center"
@@ -196,6 +197,7 @@ export function AdminTable({
           ))}
         </div>
       ))}
+      </div>
     </div>
   );
 }
@@ -293,20 +295,20 @@ export function AdminPageShell({
   return (
     <div className="flex flex-col h-full overflow-hidden">
       {/* Header */}
-      <div className="flex-none flex items-center gap-4 px-6 py-3.5 border-b border-[#dedee5]">
+      <div className="flex-none flex flex-col md:flex-row md:items-center gap-2 md:gap-4 px-4 md:px-6 py-2.5 md:py-3.5 border-b border-[#dedee5]">
         <div className="flex-1 min-w-0">
           {breadcrumbs && (
-            <div className="text-[10.5px] text-[#9a9aa0] font-mono mb-1">
+            <div className="text-[10.5px] text-[#9a9aa0] font-mono mb-1 hidden md:block">
               {breadcrumbs}
             </div>
           )}
-          <div className="text-[17px] font-bold leading-tight">{title}</div>
+          <div className="text-[15px] md:text-[17px] font-bold leading-tight">{title}</div>
           {sub && (
             <div className="text-[11px] text-[#9a9aa0] mt-0.5">{sub}</div>
           )}
         </div>
         {actions && (
-          <div className="flex-none flex items-center gap-2">{actions}</div>
+          <div className="flex-none flex items-center gap-2 overflow-x-auto">{actions}</div>
         )}
       </div>
       {/* Body */}

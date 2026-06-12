@@ -11,7 +11,7 @@ import { fmtAmount } from "./utils";
 interface Props {
   ticketId: string;
   onBack: () => void;
-  onSubmit: () => void;
+  onSubmit: (reportText: string) => void;
 }
 
 function FieldLabel({ children }: { children: React.ReactNode }) {
@@ -126,7 +126,7 @@ export function TaskReportPage({ ticketId, onBack, onSubmit }: Props) {
 
       <div className="flex-none flex gap-2 px-4 py-3.5 border-t border-[#dedee5]">
         <Button variant="ghost" onClick={onBack}>キャンセル</Button>
-        <Button full onClick={onSubmit}>実施報告を送る</Button>
+        <Button full onClick={() => onSubmit(reportText)}>実施報告を送る</Button>
       </div>
     </div>
   );

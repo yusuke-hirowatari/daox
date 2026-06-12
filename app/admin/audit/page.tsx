@@ -52,8 +52,12 @@ const FILTER_CHIPS = [
 
 // ─── Page ─────────────────────────────────────────────────────────────────
 
+const PERIOD_OPTIONS = ["今日", "今週", "今月", "全期間"] as const;
+
 export default function AdminAuditPage() {
   const [filterIdx, setFilterIdx] = useState(0);
+  const [periodIdx, setPeriodIdx] = useState(0); // default "今日"
+  const [searchQuery, setSearchQuery] = useState("");
 
   return (
     <AdminPageShell
@@ -62,8 +66,20 @@ export default function AdminAuditPage() {
       sub="運営者の操作履歴 ・ 30日間保持"
       actions={
         <>
-          <AdminBtn variant="outline" icon="🕒">期間: 今日</AdminBtn>
-          <AdminBtn variant="outline" icon="↓">CSV書き出し</AdminBtn>
+          <AdminBtn
+            variant="outline"
+            icon="🕒"
+            onClick={() => setPeriodIdx((prev) => (prev + 1) % PERIOD_OPTIONS.length)}
+          >
+            期間: {PERIOD_OPTIONS[periodIdx]}
+          </AdminBtn>
+          <AdminBtn
+            variant="outline"
+            icon="↓"
+            onClick={() => alert("監査ログのCSVダウンロードを開始しました（デモ）")}
+          >
+            CSV書き出し
+          </AdminBtn>
         </>
       }
     >
@@ -73,7 +89,13 @@ export default function AdminAuditPage() {
         <div className="flex items-center gap-2 flex-wrap">
           <div className="flex items-center gap-2 px-3 py-[7px] border border-[#dedee5] rounded-md bg-white max-w-[320px] w-full">
             <span className="text-[#9a9aa0] text-[13px]">⌕</span>
-            <span className="text-[12px] text-[#9a9aa0]">運営者・アクションで検索</span>
+            <input
+              type="text"
+              className="flex-1 text-[12px] outline-none bg-transparent placeholder:text-[#9a9aa0]"
+              placeholder="運営者・アクションで検索"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
           </div>
           {FILTER_CHIPS.map((f, i) => (
             <button
@@ -107,7 +129,11 @@ export default function AdminAuditPage() {
           </div>
 
           {/* Rows */}
-          {LOGS.map((l, i) => (
+          {LOGS.filter((l) => {
+            if (!searchQuery) return true;
+            const q = searchQuery.toLowerCase();
+            return l.who.toLowerCase().includes(q) || l.action.toLowerCase().includes(q);
+          }).map((l, i) => (
             <div
               key={i}
               className="flex px-3.5 items-center border-b last:border-b-0 border-[#dedee5] text-[12px]"

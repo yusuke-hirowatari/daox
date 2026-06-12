@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useReducer } from "react";
+import { useState, useEffect } from "react";
 
 export interface Announcement {
   title: string;
@@ -25,9 +25,12 @@ const annStore = {
 };
 
 function useAnnDismissed() {
-  const [, force] = useReducer((x: number) => x + 1, 0);
-  useEffect(() => annStore.subscribe(force), []);
-  return annStore.dismissed;
+  const [dismissed, setDismissed] = useState(false);
+  useEffect(() => {
+    setDismissed(annStore.dismissed);
+    return annStore.subscribe(() => setDismissed(annStore.dismissed));
+  }, []);
+  return dismissed;
 }
 
 export function resetAnnouncements() {

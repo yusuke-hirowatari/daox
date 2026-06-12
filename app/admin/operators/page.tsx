@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import type { ReactNode } from "react";
 import { Avatar } from "@/components/atoms/Avatar";
 import { AdminBtn, AdminPill, AdminTable, AdminPageShell, type ColDef, type PillTone } from "@/components/admin/atoms";
@@ -7,6 +8,7 @@ import { AdminBtn, AdminPill, AdminTable, AdminPageShell, type ColDef, type Pill
 // ─── Data ─────────────────────────────────────────────────────────────────
 
 interface Operator {
+  id:     string;
   name:   string;
   tone:   number;
   role:   string;
@@ -16,10 +18,10 @@ interface Operator {
 }
 
 const OPERATORS: Operator[] = [
-  { name: "田中 太郎",   tone: 0, role: "スーパー管理者", email: "tanaka@daox.app",  last: "今",      status: "有効"   },
-  { name: "伊藤 さくら", tone: 1, role: "モデレーター",   email: "ito@daox.app",     last: "5分前",   status: "有効"   },
-  { name: "運営事務局",  tone: 0, role: "スーパー管理者", email: "admin@daox.app",   last: "1時間前", status: "有効"   },
-  { name: "佐藤 一郎",   tone: 2, role: "モデレーター",   email: "sato@daox.app",    last: "昨日",    status: "招待中" },
+  { id: "o1", name: "田中 太郎",   tone: 0, role: "スーパー管理者", email: "tanaka@daox.app",  last: "今",      status: "有効"   },
+  { id: "o2", name: "伊藤 さくら", tone: 1, role: "モデレーター",   email: "ito@daox.app",     last: "5分前",   status: "有効"   },
+  { id: "o3", name: "運営事務局",  tone: 0, role: "スーパー管理者", email: "admin@daox.app",   last: "1時間前", status: "有効"   },
+  { id: "o4", name: "佐藤 一郎",   tone: 2, role: "モデレーター",   email: "sato@daox.app",    last: "昨日",    status: "招待中" },
 ];
 
 const COLS: ColDef[] = [
@@ -31,7 +33,11 @@ const COLS: ColDef[] = [
   { key: "act",    label: "",             flex: 0.4, align: "right" },
 ];
 
-function buildRows(ops: Operator[]): Record<string, ReactNode>[] {
+function buildRows(
+  ops: Operator[],
+  menuOpen: string | null,
+  setMenuOpen: (id: string | null) => void,
+): Record<string, ReactNode>[] {
   return ops.map((o) => ({
     name:   (
       <span className="inline-flex items-center gap-2">
@@ -43,7 +49,32 @@ function buildRows(ops: Operator[]): Record<string, ReactNode>[] {
     email:  o.email,
     last:   o.last,
     status: <AdminPill tone={o.status === "有効" ? "success" : "warn" as PillTone}>{o.status}</AdminPill>,
-    act:    <span className="text-[#9a9aa0] cursor-pointer hover:text-[#1a1a1a]">⋯</span>,
+    act: (
+      <div className="relative">
+        <button
+          className="text-[#9a9aa0] cursor-pointer hover:text-[#1a1a1a]"
+          onClick={(e) => { e.stopPropagation(); setMenuOpen(menuOpen === o.id ? null : o.id); }}
+        >
+          ⋯
+        </button>
+        {menuOpen === o.id && (
+          <div className="absolute right-0 top-full mt-1 w-40 bg-white border border-[#dedee5] rounded-lg shadow-lg z-20 py-1">
+            <button
+              className="w-full text-left px-3 py-2 text-[12px] hover:bg-[#f1f1f5]"
+              onClick={() => { alert(`「${o.name}」の権限を変更します（デモ）`); setMenuOpen(null); }}
+            >
+              権限を変更
+            </button>
+            <button
+              className="w-full text-left px-3 py-2 text-[12px] text-[#6666ff] hover:bg-[#f1f1f5]"
+              onClick={() => { alert(`「${o.name}」のアクセスを停止します（デモ）`); setMenuOpen(null); }}
+            >
+              アクセスを停止
+            </button>
+          </div>
+        )}
+      </div>
+    ),
   }));
 }
 
@@ -81,7 +112,17 @@ function PermToggle({ on, label }: { on: boolean; label: string }) {
 // ─── Page ─────────────────────────────────────────────────────────────────
 
 export default function AdminOperatorsPage() {
-  const rows = buildRows(OPERATORS);
+  const [menuOpen, setMenuOpen] = useState<string | null>(null);
+
+  // Close menu on outside click
+  useEffect(() => {
+    if (!menuOpen) return;
+    const handler = () => setMenuOpen(null);
+    document.addEventListener("click", handler);
+    return () => document.removeEventListener("click", handler);
+  }, [menuOpen]);
+
+  const rows = buildRows(OPERATORS, menuOpen, setMenuOpen);
 
   return (
     <AdminPageShell

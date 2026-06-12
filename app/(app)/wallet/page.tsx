@@ -192,14 +192,7 @@ export default function WalletPage() {
       <div className="flex flex-col h-full">
         {/* ── SP ──────────────────────────────────────────────────────────── */}
         <div className="md:hidden flex flex-col h-full">
-          <TopBar
-            title="ウォレット"
-            right={
-              <button className="w-8 h-8 flex items-center justify-center text-[18px] text-[#525261]">
-                ⚙
-              </button>
-            }
-          />
+          <TopBar title="ウォレット" />
           <div className="flex-1 overflow-y-auto">
             {/* Balance hero */}
             <div className="px-5 py-6 bg-[#1a1a1a] text-white">
@@ -263,10 +256,7 @@ export default function WalletPage() {
           <PcHeader
             title="ウォレット"
             right={
-              <>
-                <Button size="sm" variant="ghost">明細をエクスポート</Button>
-                <Button size="sm" variant="ghost">⚙ 設定</Button>
-              </>
+              <Button size="sm" variant="ghost">明細をエクスポート</Button>
             }
           />
           <div className="flex-1 overflow-y-auto">
@@ -587,7 +577,15 @@ export default function WalletPage() {
         <div className="flex-none flex items-center gap-2.5 border-b border-[#dedee5] px-4 h-12">
           <BackButton onClick={() => setView("main")} />
           <div className="flex-1 text-[13px] font-semibold">取引詳細</div>
-          <button className="text-[14px] text-[#9a9aa0]">⤴</button>
+          <button
+            onClick={() => {
+              const detail = `${tx.desc}\n${tx.direction === "in" ? "+" : "-"}${tx.amount} DAO\n${tx.time}`;
+              navigator.clipboard.writeText(detail).then(() => alert("取引情報をコピーしました"));
+            }}
+            className="text-[14px] text-[#9a9aa0]"
+          >
+            ⤴
+          </button>
         </div>
         <div className="flex-1 overflow-y-auto">
           {/* Amount hero */}
