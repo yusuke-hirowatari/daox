@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { TopBar, PcHeader, BackButton } from "@/components/atoms/TopBar";
+import { TopBar, BackButton } from "@/components/atoms/TopBar";
 import { Button } from "@/components/atoms/Button";
 import { Avatar } from "@/components/atoms/Avatar";
 import { TRANSACTIONS, DAO_BALANCE } from "@/mocks/wallet";
@@ -160,6 +160,13 @@ export default function WalletPage() {
     message: "",
   });
 
+  // Clipboard copy toast
+  const [copied, setCopied] = useState(false);
+
+  // Receive: specify amount
+  const [specifyAmount, setSpecifyAmount] = useState(false);
+  const [requestAmount, setRequestAmount] = useState(100);
+
   const recipient = USERS.find((u) => u.id === sendState.recipientId);
 
   // PC history tab
@@ -253,12 +260,6 @@ export default function WalletPage() {
 
         {/* ── PC ──────────────────────────────────────────────────────────── */}
         <div className="hidden md:flex flex-col h-full">
-          <PcHeader
-            title="ウォレット"
-            right={
-              <Button size="sm" variant="ghost">明細をエクスポート</Button>
-            }
-          />
           <div className="flex-1 overflow-y-auto">
             {/* Balance hero area */}
             <div className="flex gap-4 px-6 py-5">
@@ -580,11 +581,19 @@ export default function WalletPage() {
           <button
             onClick={() => {
               const detail = `${tx.desc}\n${tx.direction === "in" ? "+" : "-"}${tx.amount} DAO\n${tx.time}`;
-              navigator.clipboard.writeText(detail).then(() => alert("取引情報をコピーしました"));
+              navigator.clipboard.writeText(detail).then(() => {
+                setCopied(true);
+                setTimeout(() => setCopied(false), 2000);
+              });
             }}
-            className="text-[14px] text-[#9a9aa0]"
+            className="relative text-[14px] text-[#9a9aa0]"
           >
             ⤴
+            {copied && (
+              <span className="absolute -bottom-7 right-0 whitespace-nowrap text-[10px] font-semibold text-[#6666ff] bg-[#eeeeff] px-2 py-1 rounded-md shadow">
+                ✓ コピーしました
+              </span>
+            )}
           </button>
         </div>
         <div className="flex-1 overflow-y-auto">
@@ -625,7 +634,7 @@ export default function WalletPage() {
 
           <div className="px-4 pb-3">
             <div className="flex gap-2">
-              <Button variant="outline" full>✎ DMを開く</Button>
+              <Button variant="outline" full onClick={() => router.push("/dm")}>✎ DMを開く</Button>
               {isIn && (
                 <Button
                   full
@@ -694,10 +703,29 @@ export default function WalletPage() {
             </button>
           </div>
 
+          {/* Specify amount inline input */}
+          {specifyAmount && (
+            <div className="mt-3.5 w-full px-3.5 py-3 border border-[#dedee5] rounded-xl bg-[#f1f1f5]">
+              <div className="text-[10px] text-[#9a9aa0] mb-1.5">リクエスト金額</div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  className="flex-1 text-[24px] font-bold font-mono leading-none outline-none bg-transparent w-20 text-center"
+                  value={requestAmount}
+                  onChange={(e) => setRequestAmount(Number(e.target.value))}
+                  min={1}
+                />
+                <span className="text-[13px] font-semibold text-[#525261]">DAO</span>
+              </div>
+            </div>
+          )}
+
           <div className="flex-1" />
           <div className="flex gap-2 w-full mt-4">
-            <Button variant="outline" full>金額を指定</Button>
-            <Button full>DMで送る</Button>
+            <Button variant="outline" full onClick={() => setSpecifyAmount((v) => !v)}>
+              {specifyAmount ? "金額を解除" : "金額を指定"}
+            </Button>
+            <Button full onClick={() => router.push("/dm")}>DMで送る</Button>
           </div>
         </div>
       </div>

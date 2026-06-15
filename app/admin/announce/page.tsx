@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import type { ReactNode } from "react";
 import { AdminBtn, AdminPill, AdminTable, AdminPageShell, type ColDef, type PillTone } from "@/components/admin/atoms";
 
@@ -55,6 +56,9 @@ function buildRows(
   items: Ann[],
   menuOpen: string | null,
   setMenuOpen: (id: string | null) => void,
+  onEdit: (id: string, title: string) => void,
+  onDuplicate: (id: string) => void,
+  onArchive: (id: string) => void,
 ): Record<string, ReactNode>[] {
   return items.map((i) => ({
     status: <AdminPill tone={STATUS_TONE[i.status]}>{i.status}</AdminPill>,
@@ -75,26 +79,19 @@ function buildRows(
           <div className="absolute right-0 top-full mt-1 w-40 bg-white border border-[#dedee5] rounded-lg shadow-lg z-20 py-1">
             <button
               className="w-full text-left px-3 py-2 text-[12px] hover:bg-[#f1f1f5]"
-              onClick={() => { alert(`「${i.title}」を編集します（デモ）`); setMenuOpen(null); }}
+              onClick={() => { onEdit(i.id, i.title); setMenuOpen(null); }}
             >
               編集
             </button>
             <button
               className="w-full text-left px-3 py-2 text-[12px] hover:bg-[#f1f1f5]"
-              onClick={() => { alert(`「${i.title}」を複製します（デモ）`); setMenuOpen(null); }}
+              onClick={() => { onDuplicate(i.id); setMenuOpen(null); }}
             >
               複製
             </button>
             <button
               className="w-full text-left px-3 py-2 text-[12px] text-[#6666ff] hover:bg-[#f1f1f5]"
-              onClick={() => {
-                if (i.status === "公開中") {
-                  alert(`「${i.title}」の公開を停止します（デモ）`);
-                } else {
-                  alert(`「${i.title}」をアーカイブします（デモ）`);
-                }
-                setMenuOpen(null);
-              }}
+              onClick={() => { onArchive(i.id); setMenuOpen(null); }}
             >
               {i.status === "公開中" ? "公開を停止" : "アーカイブ"}
             </button>
@@ -108,9 +105,15 @@ function buildRows(
 // ─── Page ─────────────────────────────────────────────────────────────────
 
 export default function AdminAnnouncePage() {
+  const router = useRouter();
+  const [items, setItems] = useState<Ann[]>(ITEMS);
   const [filterIdx, setFilterIdx] = useState(0);
   const [menuOpen, setMenuOpen] = useState<string | null>(null);
   const [sortAsc, setSortAsc] = useState(true);
+
+  // Edit modal state
+  const [editingItem, setEditingItem] = useState<string | null>(null);
+  const [editTitle, setEditTitle] = useState("");
 
   // Close menu on outside click
   useEffect(() => {
@@ -120,15 +123,32 @@ export default function AdminAnnouncePage() {
     return () => document.removeEventListener("click", handler);
   }, [menuOpen]);
 
-  const sortedItems = sortAsc ? ITEMS : [...ITEMS].reverse();
-  const rows = buildRows(sortedItems, menuOpen, setMenuOpen);
+  const handleEdit = (id: string, title: string) => {
+    setEditingItem(id);
+    setEditTitle(title);
+  };
+
+  const handleDuplicate = (id: string) => {
+    const original = items.find(x => x.id === id);
+    if (original) {
+      const copy: Ann = { ...original, id: `a${Date.now()}`, title: `${original.title} (コピー)`, status: "下書き" };
+      setItems(prev => [copy, ...prev]);
+    }
+  };
+
+  const handleArchive = (id: string) => {
+    setItems(prev => prev.map(x => x.id === id ? {...x, status: "アーカイブ"} : x));
+  };
+
+  const sortedItems = sortAsc ? items : [...items].reverse();
+  const rows = buildRows(sortedItems, menuOpen, setMenuOpen, handleEdit, handleDuplicate, handleArchive);
 
   return (
     <AdminPageShell
       breadcrumbs="HOME › お知らせ"
       title="お知らせ"
       sub="公開中 2件 ・ 下書き 1件 ・ 予約 1件"
-      actions={<AdminBtn icon="+" onClick={() => alert("お知らせ作成画面は今後実装予定です")}>新しいお知らせ</AdminBtn>}
+      actions={<AdminBtn icon="+" onClick={() => router.push("/admin/posts")}>新しいお知らせ</AdminBtn>}
     >
       <div className="p-5 flex flex-col gap-3">
         {/* Filter chips */}
@@ -159,6 +179,33 @@ export default function AdminAnnouncePage() {
         {/* Table */}
         <AdminTable cols={COLS} rows={rows} rowHeight={44} />
       </div>
+
+      {/* Edit modal */}
+      {editingItem && (() => {
+        const item = items.find(i => i.id === editingItem);
+        if (!item) return null;
+        return (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center">
+            <div className="absolute inset-0 bg-black/40" onClick={() => setEditingItem(null)} />
+            <div className="relative bg-white rounded-2xl w-full max-w-[480px] p-5">
+              <div className="flex items-center justify-between mb-4">
+                <span className="text-[14px] font-bold">お知らせを編集</span>
+                <button onClick={() => setEditingItem(null)} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-[#f1f1f5]">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#525261" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                </button>
+              </div>
+              <div className="mb-3">
+                <div className="text-[11px] font-semibold text-[#525261] mb-1">タイトル</div>
+                <input className="w-full px-3 py-2 border border-[#dedee5] rounded-md text-[12.5px] outline-none focus:border-[#6666ff]" value={editTitle} onChange={(e) => setEditTitle(e.target.value)} />
+              </div>
+              <div className="flex gap-2">
+                <AdminBtn onClick={() => { setItems(prev => prev.map(i => i.id === editingItem ? {...i, title: editTitle} : i)); setEditingItem(null); }}>保存</AdminBtn>
+                <AdminBtn variant="outline" onClick={() => setEditingItem(null)}>キャンセル</AdminBtn>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </AdminPageShell>
   );
 }

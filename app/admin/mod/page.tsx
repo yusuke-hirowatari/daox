@@ -1,8 +1,10 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { Avatar } from "@/components/atoms/Avatar";
 import { AdminBtn, AdminPill, AdminPageShell } from "@/components/admin/atoms";
+import { ProfileModal } from "@/components/shared/ProfileModal";
+import type { User } from "@/mocks/types";
 
 // ─── Data ─────────────────────────────────────────────────────────────────
 
@@ -97,6 +99,10 @@ export default function AdminModPage() {
   const [tab,      setTab]      = useState<ModTab>("pending");
   const [selected, setSelected] = useState(0);
   const [reports,  setReports]  = useState<Report[]>(INITIAL_REPORTS);
+  const [showGuideline, setShowGuideline] = useState(false);
+  const [showProfile, setShowProfile] = useState(false);
+  const [showPastReports, setShowPastReports] = useState(false);
+  const [confirmBulkApprove, setConfirmBulkApprove] = useState(false);
 
   // Derived lists
   const pendingReports = reports.filter((r) => r.status === "pending");
@@ -119,6 +125,23 @@ export default function AdminModPage() {
 
   const active = visibleReports[selected] ?? null;
 
+  // Map the active report's user data to the User type for ProfileModal
+  const profileUser: User | null = useMemo(() => {
+    if (!active) return null;
+    return {
+      id:         `mod-${active.id}`,
+      name:       active.who,
+      initial:    active.who[0],
+      tone:       active.whoTone,
+      role:       "member",
+      rank:       "basic",
+      xp:         active.xp,
+      daoBalance: active.daoPoints,
+      tags:       [active.category],
+      joinedAt:   active.joinDate,
+    };
+  }, [active]);
+
   const MOD_TABS: { id: ModTab; label: string }[] = [
     { id: "pending", label: `未対応 (${pendingReports.length})` },
     { id: "hold",    label: "保留" },
@@ -127,11 +150,8 @@ export default function AdminModPage() {
 
   // ─── Action handler ────────────────────────────────────────────────
   const handleAction = useCallback(
-    (newStatus: ReportStatus, message: string) => {
+    (newStatus: ReportStatus) => {
       if (!active) return;
-
-      // Show confirmation
-      alert(message);
 
       // Update the report's status
       setReports((prev) =>
@@ -153,22 +173,23 @@ export default function AdminModPage() {
   );
 
   // ─── Header handlers ──────────────────────────────────────────────
-  const handleGuideline = useCallback(() => {
-    alert("コミュニティガイドラインを表示します（デモ）");
-  }, []);
+  const handleGuideline = useCallback(() => setShowGuideline(true), []);
 
   const handleBulkAction = useCallback(() => {
-    alert("保留中の通報をすべて一括処理します（デモ）");
+    if (pendingReports.length === 0) return;
+    setConfirmBulkApprove(true);
+  }, [pendingReports.length]);
+
+  const executeBulkApprove = useCallback(() => {
+    setReports(prev => prev.map(r => r.status === "pending" ? { ...r, status: "approved" as ReportStatus } : r));
+    setSelected(0);
+    setConfirmBulkApprove(false);
   }, []);
 
   // ─── Detail pane handlers ─────────────────────────────────────────
-  const handleProfile = useCallback(() => {
-    alert("ユーザーのプロフィールページを開きます（デモ）");
-  }, []);
+  const handleProfile = useCallback(() => setShowProfile(true), []);
 
-  const handlePastReports = useCallback(() => {
-    alert("このユーザーの過去の通報履歴を表示します（デモ）");
-  }, []);
+  const handlePastReports = useCallback(() => setShowPastReports(true), []);
 
   return (
     <AdminPageShell
@@ -178,7 +199,15 @@ export default function AdminModPage() {
       actions={
         <>
           <AdminBtn variant="outline" onClick={handleGuideline}>ガイドライン</AdminBtn>
-          <AdminBtn onClick={handleBulkAction}>一括対応</AdminBtn>
+          {confirmBulkApprove ? (
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] text-red-600 font-semibold">未対応 {pendingReports.length}件 をすべて承認しますか？</span>
+              <button onClick={executeBulkApprove} className="text-[10px] px-2 py-1 bg-red-600 text-white rounded font-semibold">確認</button>
+              <button onClick={() => setConfirmBulkApprove(false)} className="text-[10px] px-2 py-1 bg-[#f1f1f5] rounded font-semibold">キャンセル</button>
+            </div>
+          ) : (
+            <AdminBtn onClick={handleBulkAction}>一括対応</AdminBtn>
+          )}
         </>
       }
     >
@@ -327,31 +356,31 @@ export default function AdminModPage() {
                   {active.status === "pending" ? (
                     <>
                       <AdminBtn
-                        onClick={() => handleAction("approved", "この通報を承認しました。問題なしとして処理済みにします（デモ）")}
+                        onClick={() => handleAction("approved")}
                       >
                         承認(問題なし)
                       </AdminBtn>
                       <AdminBtn
                         variant="outline"
-                        onClick={() => handleAction("warned", "ユーザーに警告を送信しました（デモ）")}
+                        onClick={() => handleAction("warned")}
                       >
                         警告を送る
                       </AdminBtn>
                       <AdminBtn
                         variant="outline"
-                        onClick={() => handleAction("hidden", "投稿を非公開にしました（デモ）")}
+                        onClick={() => handleAction("hidden")}
                       >
                         投稿を非公開
                       </AdminBtn>
                       <AdminBtn
                         variant="danger"
-                        onClick={() => handleAction("deleted", "投稿を削除しました（デモ）")}
+                        onClick={() => handleAction("deleted")}
                       >
                         投稿を削除
                       </AdminBtn>
                       <AdminBtn
                         variant="danger"
-                        onClick={() => handleAction("suspended", "アカウントを停止しました（デモ）")}
+                        onClick={() => handleAction("suspended")}
                       >
                         アカウント停止
                       </AdminBtn>
@@ -381,6 +410,59 @@ export default function AdminModPage() {
           )}
         </div>
       </div>
+      {showGuideline && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setShowGuideline(false)} />
+          <div className="relative bg-white rounded-2xl w-full max-w-[480px] max-h-[80vh] overflow-y-auto p-5">
+            <div className="flex items-center justify-between mb-4">
+              <span className="text-[15px] font-bold">コミュニティガイドライン</span>
+              <button onClick={() => setShowGuideline(false)} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-[#f1f1f5]">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#525261" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+              </button>
+            </div>
+            <div className="text-[12.5px] text-[#525261] leading-[1.7] space-y-3">
+              <div><strong className="text-[#1a1a1a]">1. 相互尊重</strong><br/>メンバー同士は敬意を持って接しましょう。誹謗中傷、差別的な表現は禁止です。</div>
+              <div><strong className="text-[#1a1a1a]">2. スパム・宣伝の禁止</strong><br/>許可なく商業的な宣伝やスパム行為を行うことは禁止です。</div>
+              <div><strong className="text-[#1a1a1a]">3. 個人情報の保護</strong><br/>他のメンバーの個人情報を無断で共有しないでください。</div>
+              <div><strong className="text-[#1a1a1a]">4. 不適切なコンテンツ</strong><br/>暴力的、性的、または不快な内容の投稿は禁止です。</div>
+              <div><strong className="text-[#1a1a1a]">5. なりすましの禁止</strong><br/>他のメンバーになりすます行為は厳しく対処します。</div>
+              <div><strong className="text-[#1a1a1a]">6. 対応の流れ</strong><br/>警告 → 投稿非公開 → アカウント停止の順で対応します。重大な違反は即時停止の場合があります。</div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showProfile && active && (
+        <ProfileModal
+          user={profileUser}
+          onClose={() => setShowProfile(false)}
+        />
+      )}
+
+      {showPastReports && active && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setShowPastReports(false)} />
+          <div className="relative bg-white rounded-2xl w-full max-w-[480px] p-5">
+            <div className="flex items-center justify-between mb-4">
+              <span className="text-[14px] font-bold">{active.who} の通報履歴</span>
+              <button onClick={() => setShowPastReports(false)} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-[#f1f1f5]">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#525261" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+              </button>
+            </div>
+            {active.pastReports === 0 ? (
+              <div className="text-center py-8 text-[13px] text-[#9a9aa0]">過去の通報はありません</div>
+            ) : (
+              <div className="text-[12.5px] text-[#525261]">
+                <div className="p-3 border border-[#dedee5] rounded-lg mb-2">
+                  <div className="text-[10px] text-[#9a9aa0] font-mono mb-1">2025/03/15</div>
+                  <div className="font-semibold mb-1">不適切なコメント</div>
+                  <div>対応: 警告を送信</div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </AdminPageShell>
   );
 }

@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Avatar } from "@/components/atoms/Avatar";
-import { CommunitySwitcher } from "./CommunitySwitcher";
 
 /* ── nav definition ── */
 const NAV_ITEMS = [
@@ -25,11 +24,6 @@ export function SideNav() {
       className="hidden md:flex md:flex-col md:shrink-0"
       style={{ width: 220, background: "#f1f1f5", borderRight: "1px solid #dedee5", padding: "20px 12px" }}
     >
-      {/* ── Community Switcher ── */}
-      <div className="mb-[18px]">
-        <CommunitySwitcher variant="pc" />
-      </div>
-
       {/* ── Nav Items ── */}
       <nav className="flex flex-col gap-0.5 flex-1">
         {NAV_ITEMS.map(({ href, label, icon: Icon, badge }) => {
@@ -85,6 +79,14 @@ function HomeIcon({ active }: IconProps) {
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={ICON_COLOR(active)} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M3 9.5L12 3l9 6.5V20a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9.5z" />
       <path d="M9 21V12h6v9" />
+    </svg>
+  );
+}
+
+function MembersIcon({ active }: IconProps) {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={ICON_COLOR(active)} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" />
     </svg>
   );
 }

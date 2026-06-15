@@ -139,6 +139,8 @@ export default function AdminBoardPage() {
   const [newTitle, setNewTitle] = useState("");
   const [newBody, setNewBody] = useState("");
   const [newTokens, setNewTokens] = useState("");
+  const [boardPeriod, setBoardPeriod] = useState("今週");
+  const [formError, setFormError] = useState("");
 
   // ─── Derived counts ──────────────────────────────────────────────────
   const activeReports = reports.filter(
@@ -162,14 +164,6 @@ export default function AdminBoardPage() {
     (id: number, action: "resolve" | "hide" | "delete" | "suspend") => {
       const report = reports.find((r) => r.id === id);
       if (!report) return;
-
-      const labels: Record<string, string> = {
-        resolve: `「${report.title}」を問題なしとして処理しました`,
-        hide: `「${report.title}」を非公開にしました`,
-        delete: `「${report.title}」を削除しました`,
-        suspend: `「${report.author}」のアカウントを停止しました`,
-      };
-      alert(labels[action]);
 
       if (action === "resolve") {
         setReports((prev) =>
@@ -197,12 +191,6 @@ export default function AdminBoardPage() {
     (id: number, action: "hide" | "delete") => {
       const post = posts.find((p) => p.id === id);
       if (!post) return;
-
-      const labels: Record<string, string> = {
-        hide: `「${post.title}」を非公開にしました`,
-        delete: `「${post.title}」を削除しました`,
-      };
-      alert(labels[action]);
 
       setPosts((prev) =>
         prev.map((p) => (p.id === id ? { ...p, status: action === "hide" ? "hidden" : "deleted" } : p))
@@ -392,7 +380,7 @@ export default function AdminBoardPage() {
               className="text-[12px] text-[#1a1a1a] placeholder:text-[#9a9aa0] bg-transparent outline-none w-full"
             />
           </div>
-          <AdminBtn variant="outline">期間: 今週</AdminBtn>
+          <AdminBtn variant="outline" onClick={() => { const periods = ["今日","今週","今月","全期間"]; setBoardPeriod(periods[(periods.indexOf(boardPeriod)+1) % periods.length]); }}>期間: {boardPeriod}</AdminBtn>
         </>
       }
     >
@@ -441,9 +429,13 @@ export default function AdminBoardPage() {
             </div>
 
             <div className="flex items-center gap-2">
+              {formError && (
+                <div className="mb-2 text-[12px] text-[#e53e3e] font-semibold">{formError}</div>
+              )}
               <AdminBtn
                 onClick={() => {
-                  if (!newTitle.trim() || !newBody.trim()) { alert("タイトルと本文を入力してください"); return; }
+                  if (!newTitle.trim() || !newBody.trim()) { setFormError("タイトルと本文を入力してください"); setTimeout(() => setFormError(""), 3000); return; }
+                  setFormError("");
                   const newPost: Post = {
                     id: Date.now(),
                     author: "運営事務局",
@@ -461,7 +453,6 @@ export default function AdminBoardPage() {
                   setNewBody("");
                   setNewTokens("");
                   setTab("all");
-                  alert("掲示板に投稿しました");
                 }}
                 disabled={!newTitle.trim() || !newBody.trim()}
               >

@@ -76,7 +76,18 @@ export default function AdminAuditPage() {
           <AdminBtn
             variant="outline"
             icon="↓"
-            onClick={() => alert("監査ログのCSVダウンロードを開始しました（デモ）")}
+            onClick={() => {
+              const header = "時刻,重要度,運営者,アクション,対象,IP";
+              const csvRows = LOGS.map(l => [l.t, l.sev, l.who, l.action, l.target, l.ip].join(","));
+              const csv = [header, ...csvRows].join("\n");
+              const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement("a");
+              a.href = url;
+              a.download = `audit_log_${new Date().toISOString().slice(0,10)}.csv`;
+              a.click();
+              URL.revokeObjectURL(url);
+            }}
           >
             CSV書き出し
           </AdminBtn>

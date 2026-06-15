@@ -151,8 +151,15 @@ const OP_COLS: ColDef[] = [
   { key: "action", label: "",             w: 32 },
 ];
 
-function buildOperatorRows() {
-  return OPERATORS.map((o) => ({
+function buildOperatorRows(
+  opMenuOpen: string | null,
+  setOpMenuOpen: (id: string | null) => void,
+  operators: typeof OPERATORS,
+  setOperators: React.Dispatch<React.SetStateAction<typeof OPERATORS>>,
+  suspendConfirmId: string | null,
+  setSuspendConfirmId: (id: string | null) => void,
+) {
+  return operators.map((o) => ({
     name: (
       <span className="flex items-center gap-2">
         <Avatar label={o.name.charAt(0)} size={26} tone={o.tone} />
@@ -167,21 +174,73 @@ function buildOperatorRows() {
     email: o.email,
     last: o.last,
     status: (
-      <AdminPill tone={o.status === "有効" ? "success" : "warn"}>
+      <AdminPill tone={o.status === "有効" ? "success" : ("warn" as PillTone)}>
         {o.status}
       </AdminPill>
     ),
     action: (
-      <button className="text-[#9a9aa0] hover:text-[#1a1a1a] text-[14px]">...</button>
+      <div className="relative">
+        {suspendConfirmId === o.id ? (
+          <div className="flex items-center gap-1.5">
+            <span className="text-[11px] text-[#e53e3e] font-semibold whitespace-nowrap">停止する？</span>
+            <button
+              className="px-2 py-1 rounded bg-[#e53e3e] text-white text-[11px] font-semibold hover:bg-[#c53030] transition-colors"
+              onClick={(e) => {
+                e.stopPropagation();
+                setOperators(prev => prev.map(op => op.id === o.id ? {...op, status: "停止"} : op));
+                setSuspendConfirmId(null);
+              }}
+            >
+              確認
+            </button>
+            <button
+              className="px-2 py-1 rounded border border-[#dedee5] text-[11px] text-[#525261] hover:bg-[#f1f1f5] transition-colors"
+              onClick={(e) => {
+                e.stopPropagation();
+                setSuspendConfirmId(null);
+              }}
+            >
+              取消
+            </button>
+          </div>
+        ) : (
+          <>
+            <button
+              className="text-[#9a9aa0] hover:text-[#1a1a1a] text-[14px] cursor-pointer"
+              onClick={(e) => { e.stopPropagation(); setOpMenuOpen(opMenuOpen === o.id ? null : o.id); }}
+            >
+              ...
+            </button>
+            {opMenuOpen === o.id && (
+              <div className="absolute right-0 top-full mt-1 w-40 bg-white border border-[#dedee5] rounded-lg shadow-lg z-20 py-1">
+                <button className="w-full text-left px-3 py-2 text-[12px] hover:bg-[#f1f1f5]" onClick={() => {
+                  const newRole = o.role === "スーパー管理者" ? "モデレーター" : "スーパー管理者";
+                  setOperators(prev => prev.map(op => op.id === o.id ? {...op, role: newRole} : op));
+                  setOpMenuOpen(null);
+                }}>
+                  権限を変更
+                </button>
+                <button className="w-full text-left px-3 py-2 text-[12px] text-[#6666ff] hover:bg-[#f1f1f5]" onClick={() => {
+                  setOpMenuOpen(null);
+                  setSuspendConfirmId(o.id);
+                }}>
+                  アクセスを停止
+                </button>
+              </div>
+            )}
+          </>
+        )}
+      </div>
     ),
   }));
 }
 
 // ─── PermToggle ───────────────────────────────────────────────────────────
 
-function PermToggle({ on }: { on: boolean }) {
+function PermToggle({ on, onClick }: { on: boolean; onClick?: () => void }) {
   return (
     <div
+      onClick={onClick}
       className="w-[34px] h-[18px] rounded-full flex items-center transition-colors cursor-pointer"
       style={{ background: on ? "#6666ff" : "#dedee5", justifyContent: on ? "flex-end" : "flex-start", padding: "0 2px" }}
     >
@@ -263,9 +322,63 @@ export default function AdminSettingsPage() {
   const [region, setRegion] = useState(INITIAL_VALUES.region);
   const [language, setLanguage] = useState(INITIAL_VALUES.language);
 
+  // Save button state
+  const [saved, setSaved] = useState(false);
+
+  // Logo state
+  const [logoChanged, setLogoChanged] = useState(false);
+
+  // Operator invite state
+  const [invitingOp, setInvitingOp] = useState(false);
+  const [opEmail, setOpEmail] = useState("");
+  const [opRole, setOpRole] = useState("モデレーター");
+  const [opInviteSent, setOpInviteSent] = useState(false);
+
+  // Operator menu state
+  const [opMenuOpen, setOpMenuOpen] = useState<string | null>(null);
+  const [operators, setOperators] = useState(OPERATORS);
+
+  // Permissions state
+  const [permissions, setPermissions] = useState(PERMISSIONS);
+
+  // Audit period state
+  const [auditPeriod, setAuditPeriod] = useState("今日");
+
   // Audit search state
   const [auditSearch, setAuditSearch] = useState("");
   const [auditFilter, setAuditFilter] = useState("すべて");
+
+  // Official account state
+  const [officialName, setOfficialName] = useState("新富商店街コミュニティ 運営事務局");
+  const [officialReply, setOfficialReply] = useState("お問い合わせありがとうございます。運営チームが確認後、ご連絡いたします。");
+  const [officialSaved, setOfficialSaved] = useState(false);
+
+  // Guidelines state
+  const [guidelinesText, setGuidelinesText] = useState("1. 相互尊重\nメンバー同士は敬意を持って接しましょう。\n\n2. 個人情報の保護\n他のメンバーの個人情報を無断で共有しないでください。\n\n3. スパム・宣伝の禁止\n商業的な宣伝やスパム行為は禁止です。\n\n4. 不適切なコンテンツ\n暴力的、差別的、または不快な内容の投稿は禁止です。\n\n5. 違反への対応\n違反が確認された場合、警告→投稿非公開→アカウント停止の順で対応します。");
+  const [guidelinesSaved, setGuidelinesSaved] = useState(false);
+
+  // Invite tab state
+  const [joinMethod, setJoinMethod] = useState("招待リンクのみ");
+
+  // Brand tab state
+  const [brandColor, setBrandColor] = useState("#1a1a1a");
+
+  // Danger tab state
+  const [deletionRequested, setDeletionRequested] = useState(false);
+
+  // Operator suspension inline confirm state
+  const [suspendConfirmId, setSuspendConfirmId] = useState<string | null>(null);
+
+  // Notification settings state
+  const [notifSettings, setNotifSettings] = useState([
+    { label: "お知らせ配信時", on: true },
+    { label: "新規メンバー参加時", on: true },
+    { label: "タスク完了時", on: true },
+    { label: "通報受信時", on: true },
+    { label: "トークン発行時", on: false },
+    { label: "チェックイン時", on: false },
+  ]);
+  const [notifSaved, setNotifSaved] = useState(false);
 
   const resetAll = () => {
     setCommunityName(INITIAL_VALUES.communityName);
@@ -274,6 +387,14 @@ export default function AdminSettingsPage() {
     setRegion(INITIAL_VALUES.region);
     setLanguage(INITIAL_VALUES.language);
   };
+
+  // Close operator menu on outside click
+  useEffect(() => {
+    if (!opMenuOpen) return;
+    const handler = () => setOpMenuOpen(null);
+    document.addEventListener("click", handler);
+    return () => document.removeEventListener("click", handler);
+  }, [opMenuOpen]);
 
   // ── Filtered audit logs ──
   const filteredLogs = LOGS.filter((log) => {
@@ -317,18 +438,29 @@ export default function AdminSettingsPage() {
         return (
           <>
             <AdminBtn variant="outline" onClick={resetAll}>変更を破棄</AdminBtn>
-            <AdminBtn onClick={() => alert("コミュニティ設定を保存しました（デモ）")}>保存</AdminBtn>
+            <AdminBtn onClick={() => { setSaved(true); setTimeout(() => setSaved(false), 2000); }}>{saved ? "✓ 保存しました" : "保存"}</AdminBtn>
           </>
         );
       case "operators":
         return (
-          <AdminBtn onClick={() => alert("運営者の招待画面を開きます（デモ）")}>運営者を招待</AdminBtn>
+          <AdminBtn onClick={() => setInvitingOp(true)}>運営者を招待</AdminBtn>
         );
       case "audit":
         return (
           <>
-            <AdminBtn variant="outline">期間: 今日</AdminBtn>
-            <AdminBtn variant="outline" onClick={() => alert("CSVをエクスポートしました（デモ）")}>CSV書き出し</AdminBtn>
+            <AdminBtn variant="outline" onClick={() => { const periods = ["今日","今週","今月","全期間"]; setAuditPeriod(periods[(periods.indexOf(auditPeriod)+1) % periods.length]); }}>期間: {auditPeriod}</AdminBtn>
+            <AdminBtn variant="outline" onClick={() => {
+              const header = "時刻,実行者,操作,対象,IP,重要度";
+              const csvRows = filteredLogs.map(l => [l.t, l.who, l.action, l.target, l.ip, l.sev].join(","));
+              const csv = [header, ...csvRows].join("\n");
+              const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement("a");
+              a.href = url;
+              a.download = `audit_log_${new Date().toISOString().slice(0,10)}.csv`;
+              a.click();
+              URL.revokeObjectURL(url);
+            }}>CSV書き出し</AdminBtn>
           </>
         );
       default:
@@ -397,10 +529,20 @@ export default function AdminSettingsPage() {
                     className="flex items-center justify-center rounded-xl text-white text-[28px] font-bold flex-none"
                     style={{ width: 64, height: 64, background: "#1a1a1a" }}
                   >
-                    新
+                    {logoChanged ? "✓" : "新"}
                   </div>
-                  <AdminBtn variant="outline" onClick={() => alert("画像の変更画面は今後実装予定です")}>画像を変更</AdminBtn>
-                  <AdminBtn variant="ghost" onClick={() => alert("画像を削除しました（デモ）")}>削除</AdminBtn>
+                  <AdminBtn variant="outline" onClick={() => {
+                    const input = document.createElement("input");
+                    input.type = "file";
+                    input.accept = "image/*";
+                    input.onchange = () => {
+                      if (input.files && input.files.length > 0) {
+                        setLogoChanged(true);
+                      }
+                    };
+                    input.click();
+                  }}>画像を変更</AdminBtn>
+                  <AdminBtn variant="ghost" onClick={() => setLogoChanged(false)}>削除</AdminBtn>
                 </div>
               </Field>
 
@@ -434,10 +576,37 @@ export default function AdminSettingsPage() {
             <div>
               <div className="text-[15px] font-bold mb-4">運営者</div>
 
+              {invitingOp && (
+                <div className="border-[1.5px] border-[#6666ff] rounded-[10px] bg-white p-4 mb-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="text-[14px] font-bold">運営者を招待</div>
+                    <button onClick={() => { setInvitingOp(false); setOpEmail(""); setOpInviteSent(false); }} className="text-[#9a9aa0] hover:text-[#1a1a1a] text-[18px] leading-none">×</button>
+                  </div>
+                  {opInviteSent ? (
+                    <div className="text-[12.5px] text-[#2d7a4a] font-semibold py-2">✓ {opEmail} に招待を送信しました</div>
+                  ) : (
+                    <div className="flex items-end gap-3 flex-wrap">
+                      <div>
+                        <div className="text-[11px] font-semibold text-[#525261] mb-1">メールアドレス</div>
+                        <input type="email" className="h-9 w-[280px] px-3 border border-[#dedee5] rounded-md text-[12.5px] outline-none focus:border-[#6666ff]" placeholder="operator@example.com" value={opEmail} onChange={(e) => setOpEmail(e.target.value)} />
+                      </div>
+                      <div>
+                        <div className="text-[11px] font-semibold text-[#525261] mb-1">ロール</div>
+                        <select className="h-9 px-3 border border-[#dedee5] rounded-md text-[12.5px] outline-none focus:border-[#6666ff] bg-white" value={opRole} onChange={(e) => setOpRole(e.target.value)}>
+                          <option value="モデレーター">モデレーター</option>
+                          <option value="スーパー管理者">スーパー管理者</option>
+                        </select>
+                      </div>
+                      <AdminBtn disabled={!opEmail.trim() || !opEmail.includes("@")} onClick={() => setOpInviteSent(true)}>招待を送信</AdminBtn>
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div className="flex flex-col md:flex-row gap-6">
                 {/* Operators table */}
                 <div className="flex-1 min-w-0">
-                  <AdminTable cols={OP_COLS} rows={buildOperatorRows()} />
+                  <AdminTable cols={OP_COLS} rows={buildOperatorRows(opMenuOpen, setOpMenuOpen, operators, setOperators, suspendConfirmId, setSuspendConfirmId)} />
                 </div>
 
                 {/* Permission matrix */}
@@ -450,7 +619,7 @@ export default function AdminSettingsPage() {
                       <div className="w-[72px] text-center">モデレーター</div>
                     </div>
                     {/* Matrix rows */}
-                    {PERMISSIONS.map((p, i) => (
+                    {permissions.map((p, i) => (
                       <div
                         key={i}
                         className="flex items-center px-4 border-b last:border-b-0 border-[#dedee5] text-[12px]"
@@ -458,10 +627,10 @@ export default function AdminSettingsPage() {
                       >
                         <div className="flex-1 text-[#1a1a1a] font-medium">{p.group}</div>
                         <div className="w-[72px] flex justify-center">
-                          <PermToggle on={p.a} />
+                          <PermToggle on={p.a} onClick={() => setPermissions(prev => prev.map((pp, j) => j === i ? {...pp, a: !pp.a} : pp))} />
                         </div>
                         <div className="w-[72px] flex justify-center">
-                          <PermToggle on={p.b} />
+                          <PermToggle on={p.b} onClick={() => setPermissions(prev => prev.map((pp, j) => j === i ? {...pp, b: !pp.b} : pp))} />
                         </div>
                       </div>
                     ))}
@@ -517,14 +686,130 @@ export default function AdminSettingsPage() {
             </div>
           )}
 
-          {/* ──────── Coming-soon tabs ──────── */}
-          {activeTab !== "profile" && activeTab !== "operators" && activeTab !== "audit" && (
-            <div className="flex flex-col items-center justify-center py-20 text-[#9a9aa0]">
-              <div className="text-[32px] mb-3">&#x2699;</div>
-              <div className="text-[13px]">
-                {ALL_TABS.find((t) => t.id === activeTab)?.label} の設定
+          {/* ──────── Official account tab ──────── */}
+          {activeTab === "official" && (
+            <div className="max-w-[560px]">
+              <div className="text-[15px] font-bold mb-4">公式アカウント</div>
+              <div className="mb-4">
+                <div className="text-[11.5px] font-semibold mb-1.5">表示名</div>
+                <div className="h-9 border border-[#dedee5] rounded-md px-3 flex items-center bg-white text-[12.5px] focus-within:border-[#6666ff]">
+                  <input className="flex-1 outline-none bg-transparent" value={officialName} onChange={(e) => setOfficialName(e.target.value)} />
+                </div>
               </div>
-              <div className="text-[11px] mt-1">このセクションは準備中です</div>
+              <div className="mb-4">
+                <div className="text-[11.5px] font-semibold mb-1.5">自動返信メッセージ</div>
+                <textarea className="min-h-[80px] border border-[#dedee5] rounded-md px-3 py-2.5 bg-white text-[12.5px] leading-[1.55] w-full outline-none focus:border-[#6666ff] resize-y" value={officialReply} onChange={(e) => setOfficialReply(e.target.value)} />
+              </div>
+              <div className="mt-4">
+                <AdminBtn onClick={() => { setOfficialSaved(true); setTimeout(() => setOfficialSaved(false), 2000); }}>{officialSaved ? "✓ 保存しました" : "保存"}</AdminBtn>
+              </div>
+            </div>
+          )}
+
+          {/* ──────── Rules tab ──────── */}
+          {activeTab === "rules" && (
+            <div className="max-w-[560px]">
+              <div className="text-[15px] font-bold mb-4">コミュニティガイドライン</div>
+              <textarea className="min-h-[300px] border border-[#dedee5] rounded-md px-3 py-2.5 bg-white text-[12.5px] leading-[1.7] w-full outline-none focus:border-[#6666ff] resize-y" value={guidelinesText} onChange={(e) => setGuidelinesText(e.target.value)} />
+              <div className="mt-4">
+                <AdminBtn onClick={() => { setGuidelinesSaved(true); setTimeout(() => setGuidelinesSaved(false), 2000); }}>{guidelinesSaved ? "✓ 保存しました" : "保存"}</AdminBtn>
+              </div>
+            </div>
+          )}
+
+          {/* ──────── Notification tab ──────── */}
+          {activeTab === "notif" && (
+            <div className="max-w-[560px]">
+              <div className="text-[15px] font-bold mb-4">通知設定</div>
+              {notifSettings.map((n, i) => (
+                <div key={i} className="flex items-center justify-between py-3 border-b border-[#dedee5] text-[12.5px]">
+                  <span>{n.label}</span>
+                  <PermToggle on={n.on} onClick={() => setNotifSettings(prev => prev.map((item, j) => j === i ? { ...item, on: !item.on } : item))} />
+                </div>
+              ))}
+              <div className="mt-4">
+                <AdminBtn onClick={() => { setNotifSaved(true); setTimeout(() => setNotifSaved(false), 2000); }}>{notifSaved ? "✓ 保存しました" : "通知設定を保存"}</AdminBtn>
+              </div>
+            </div>
+          )}
+
+          {/* ──────── Invite tab ──────── */}
+          {activeTab === "invite" && (
+            <div className="max-w-[560px]">
+              <div className="text-[15px] font-bold mb-4">招待・参加条件</div>
+              <div className="mb-4">
+                <div className="text-[11.5px] font-semibold mb-1.5">参加方法</div>
+                <select className="h-9 border border-[#dedee5] rounded-md px-3 text-[12.5px] bg-white w-full outline-none focus:border-[#6666ff]" value={joinMethod} onChange={(e) => setJoinMethod(e.target.value)}>
+                  <option value="招待リンクのみ">招待リンクのみ</option>
+                  <option value="誰でも参加可能">誰でも参加可能</option>
+                  <option value="承認制">承認制</option>
+                </select>
+              </div>
+              <div className="mb-4">
+                <div className="text-[11.5px] font-semibold mb-1.5">招待リンク</div>
+                <div className="h-9 border border-[#dedee5] rounded-md px-3 flex items-center bg-[#f1f1f5] text-[12px] font-mono text-[#525261]">
+                  https://shintomi.daox.app/invite/abc123
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ──────── Brand tab ──────── */}
+          {activeTab === "brand" && (
+            <div className="max-w-[560px]">
+              <div className="text-[15px] font-bold mb-4">ブランディング</div>
+              <div className="mb-4">
+                <div className="text-[11.5px] font-semibold mb-1.5">テーマカラー</div>
+                <div className="flex items-center gap-3">
+                  {["#1a1a1a","#6666ff","#2d7a4a","#d69e2e","#e53e3e"].map(c => (
+                    <div
+                      key={c}
+                      className={`w-8 h-8 rounded-full shadow cursor-pointer hover:scale-110 transition-transform flex items-center justify-center ${brandColor === c ? "border-[3px] border-[#6666ff] ring-2 ring-[#6666ff]/30" : "border-2 border-white"}`}
+                      style={{ background: c }}
+                      onClick={() => setBrandColor(c)}
+                    >
+                      {brandColor === c && (
+                        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 7.5L5.5 10L11 4" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ──────── Billing tab ──────── */}
+          {activeTab === "billing" && (
+            <div className="max-w-[560px]">
+              <div className="text-[15px] font-bold mb-4">請求・プラン</div>
+              <div className="p-4 border border-[#dedee5] rounded-[10px] bg-white mb-4">
+                <div className="text-[11px] text-[#9a9aa0] font-mono mb-1">CURRENT PLAN</div>
+                <div className="text-[18px] font-bold">コミュニティ プラン</div>
+                <div className="text-[12px] text-[#525261] mt-1">メンバー上限: 500人 ・ ストレージ: 10GB</div>
+              </div>
+              <div className="text-[12px] text-[#9a9aa0]">次回請求日: 2026/07/01 ・ ¥5,000/月</div>
+            </div>
+          )}
+
+          {/* ──────── Danger tab ──────── */}
+          {activeTab === "danger" && (
+            <div className="max-w-[560px]">
+              <div className="text-[15px] font-bold mb-4 text-[#e53e3e]">危険な操作</div>
+              <div className="p-4 border border-[#e53e3e] rounded-[10px] bg-[#fef2f2] mb-4">
+                <div className="text-[13px] font-bold text-[#e53e3e] mb-2">コミュニティを削除</div>
+                <div className="text-[12px] text-[#525261] mb-3">この操作は取り消せません。すべてのデータが完全に削除されます。</div>
+                {deletionRequested ? (
+                  <div className="text-[12.5px] text-[#2d7a4a] font-semibold py-2">削除リクエストを送信しました</div>
+                ) : (
+                  <button className="px-4 py-2 rounded-md bg-[#e53e3e] text-white text-[12px] font-semibold hover:bg-[#c53030] transition-colors" onClick={() => {
+                    if (window.confirm("本当にコミュニティを削除しますか？この操作は取り消せません。")) {
+                      if (window.confirm("最終確認: すべてのメンバーデータ、トークン、投稿が削除されます。続行しますか？")) {
+                        setDeletionRequested(true);
+                      }
+                    }
+                  }}>コミュニティを削除する</button>
+                )}
+              </div>
             </div>
           )}
         </div>

@@ -79,6 +79,10 @@ function DetailBody({
   const [openTpl, setOpenTpl] = useState(false);
   const [ownerTab, setOwnerTab] = useState(0);
   const [showQa, setShowQa] = useState(false);
+  const [ticketAdded, setTicketAdded] = useState(false);
+  const [showQaForm, setShowQaForm] = useState(false);
+  const [qaInput, setQaInput] = useState("");
+  const [localQaList, setLocalQaList] = useState<{ id: string; question: string; createdAt: string }[]>([]);
   const router = useRouter();
   const { getTemplateById, getTicketById, getTicketsByTemplate, tickets } = useTaskContext();
 
@@ -225,9 +229,15 @@ function DetailBody({
               );
             })}
             <div className="px-4 py-2.5">
-              <div className="py-2 border border-dashed border-[#bbbbc0] rounded-lg text-center text-[11.5px] font-semibold text-[#525261]">
-                + チケットを追加発行 (残り枠を増やす)
-              </div>
+              <button
+                onClick={() => {
+                  setTicketAdded(true);
+                  setTimeout(() => setTicketAdded(false), 2000);
+                }}
+                className="w-full py-2 border border-dashed border-[#bbbbc0] rounded-lg text-center text-[11.5px] font-semibold text-[#525261] hover:bg-[#f1f1f5] transition-colors"
+              >
+                {ticketAdded ? "--- チケットを追加しました ---" : "+ チケットを追加発行 (残り枠を増やす)"}
+              </button>
             </div>
 
             <ShareLinkBar templateId={templateId} />
@@ -260,10 +270,58 @@ function DetailBody({
                 );
               })
             )}
-            <div className="p-3.5">
-              <div className="py-2.5 border border-[#bbbbc0] rounded-full text-center text-[11.5px] text-[#9a9aa0]">
-                + 質問・お知らせを投稿
+            {localQaList.map((lq) => (
+              <div key={lq.id} className="px-4 py-3 border-b border-[#dedee5] flex gap-2.5">
+                <Avatar size={28} label="田" tone={0} />
+                <div className="flex-1 min-w-0">
+                  <div className="text-[12px] font-semibold mb-0.5">{lq.question}</div>
+                  <div className="text-[10.5px] text-[#9a9aa0] italic">未回答</div>
+                </div>
               </div>
+            ))}
+            <div className="p-3.5">
+              {showQaForm ? (
+                <div className="border border-[#dedee5] rounded-lg p-3">
+                  <textarea
+                    className="w-full px-2 py-2 border border-[#dedee5] rounded-md text-[11.5px] min-h-[48px] resize-none mb-2 outline-none focus:border-[#1a1a1a]"
+                    placeholder="質問・お知らせの内容を入力..."
+                    value={qaInput}
+                    onChange={(e) => setQaInput(e.target.value)}
+                    rows={2}
+                  />
+                  <div className="flex gap-2 justify-end">
+                    <button
+                      onClick={() => { setShowQaForm(false); setQaInput(""); }}
+                      className="px-3 py-1.5 text-[11px] font-semibold text-[#525261] border border-[#dedee5] rounded-md hover:bg-[#f1f1f5] transition-colors"
+                    >
+                      キャンセル
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (qaInput.trim()) {
+                          setLocalQaList((prev) => [
+                            ...prev,
+                            { id: `local-qa-${Date.now()}`, question: qaInput.trim(), createdAt: new Date().toISOString() },
+                          ]);
+                          setQaInput("");
+                          setShowQaForm(false);
+                        }
+                      }}
+                      disabled={!qaInput.trim()}
+                      className="px-3 py-1.5 text-[11px] font-semibold text-white bg-[#1a1a1a] rounded-md hover:bg-[#333] transition-colors disabled:opacity-40"
+                    >
+                      投稿する
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setShowQaForm(true)}
+                  className="w-full py-2.5 border border-[#bbbbc0] rounded-full text-center text-[11.5px] text-[#9a9aa0] hover:bg-[#f1f1f5] transition-colors"
+                >
+                  + 質問・お知らせを投稿
+                </button>
+              )}
             </div>
           </>
         )}
@@ -461,6 +519,7 @@ function ActionBar({
   onReport,
   onApprove,
   onReturn,
+  onClose,
   onEdit,
 }: {
   context: DetailContext;
@@ -471,6 +530,7 @@ function ActionBar({
   onApprove: (id: string) => void;
   onReturn: (id: string) => void;
   onReject: (id: string) => void;
+  onClose: () => void;
   onEdit?: (templateId: string) => void;
 }) {
   const { getTicketById } = useTaskContext();
@@ -510,7 +570,7 @@ function ActionBar({
   if (context === "owner") {
     return (
       <div className="flex-none px-3.5 py-3.5 border-t border-[#dedee5] flex gap-2">
-        <Button variant="ghost">募集を中止</Button>
+        <Button variant="ghost" onClick={() => { if (window.confirm("この募集を中止しますか？")) onClose(); }}>募集を中止</Button>
         <Button full onClick={() => onEdit?.(templateId)}>テンプレを編集</Button>
       </div>
     );
@@ -567,6 +627,7 @@ export function TaskDetailPanel({
         onApprove={onApprove}
         onReturn={onReturn}
         onReject={onReject}
+        onClose={onClose}
         onEdit={onEdit}
       />
     </div>

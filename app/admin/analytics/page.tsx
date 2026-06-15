@@ -99,7 +99,18 @@ export default function AdminAnalyticsPage() {
           <AdminBtn
             variant="outline"
             icon="↓"
-            onClick={() => alert("分析レポートのダウンロードを開始しました（デモ）")}
+            onClick={() => {
+              const header = "指標,値,変化";
+              const csvRows = KPI_CARDS.map(c => [c.k, c.v, c.delta].join(","));
+              const csv = [header, ...csvRows].join("\n");
+              const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement("a");
+              a.href = url;
+              a.download = `analytics_report_${new Date().toISOString().slice(0,10)}.csv`;
+              a.click();
+              URL.revokeObjectURL(url);
+            }}
           >
             レポート出力
           </AdminBtn>

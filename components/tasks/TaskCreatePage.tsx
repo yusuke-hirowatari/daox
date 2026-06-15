@@ -4,6 +4,8 @@ import { useState } from "react";
 import { TopBar, BackButton } from "@/components/atoms/TopBar";
 import { Button } from "@/components/atoms/Button";
 import type { TaskTemplate, TaskAmount, TaskType } from "@/mocks/types";
+import { TASK_TEMPLATES } from "@/mocks/tasks";
+import { USERS } from "@/mocks/users";
 
 type SlotType = "once" | "continue";
 
@@ -45,6 +47,13 @@ export function TaskCreatePage({ onBack, onPublish, initial }: Props) {
     initial?.type === "continue" ? "continue" : "once";
   const [slotType, setSlotType] = useState<SlotType>(initSlotType);
   const [slotCount, setSlotCount] = useState(String(initial?.totalSlots ?? 1));
+
+  // Approver selection
+  const [showApproverSelect, setShowApproverSelect] = useState(false);
+  const [selectedApprover, setSelectedApprover] = useState("自分(発注主)");
+
+  // Draft save feedback
+  const [saved, setSaved] = useState(false);
 
   const SLOT_OPTIONS: { type: SlotType; label: string }[] = [
     { type: "once",     label: "人数限定" },
@@ -92,11 +101,24 @@ export function TaskCreatePage({ onBack, onPublish, initial }: Props) {
       <div className="flex-1 overflow-y-auto px-5 py-3">
         {/* Copy from past (新規のみ) */}
         {!isEdit && (
-          <div className="flex items-center gap-2.5 px-3 py-2.5 border border-dashed border-[#bbbbc0] rounded-lg bg-[#f1f1f5] mb-4 text-[11.5px] text-[#525261]">
+          <button
+            onClick={() => {
+              const t = TASK_TEMPLATES[0];
+              setTitle(t.title);
+              setDesc(t.desc);
+              setAmount(t.defaultAmount === "undecided" ? "500" : String(t.defaultAmount));
+              setUndecided(t.defaultAmount === "undecided");
+              setTime(t.defaultTime);
+              setDeadline(t.deadline);
+              setSlotType(t.type === "continue" ? "continue" : "once");
+              setSlotCount(String(t.totalSlots));
+            }}
+            className="flex items-center gap-2.5 w-full px-3 py-2.5 border border-dashed border-[#bbbbc0] rounded-lg bg-[#f1f1f5] mb-4 text-[11.5px] text-[#525261] hover:bg-[#e8e8ef] transition-colors text-left"
+          >
             <span className="text-[14px]">⎘</span>
             <span className="flex-1">過去のタスクからコピー</span>
             <span className="text-[#6666ff] font-semibold">選ぶ →</span>
-          </div>
+          </button>
         )}
 
         {/* Title */}
@@ -217,20 +239,48 @@ export function TaskCreatePage({ onBack, onPublish, initial }: Props) {
         <div className="flex items-center gap-2.5 py-3 border-t border-[#dedee5]">
           <div className="flex-1">
             <div className="text-[12.5px] font-semibold">承認者</div>
-            <div className="text-[10.5px] text-[#9a9aa0] mt-0.5">自分(発注主)</div>
+            <div className="text-[10.5px] text-[#9a9aa0] mt-0.5">{selectedApprover}</div>
           </div>
           <button
-            onClick={() => alert("承認者の変更機能は今後実装予定です")}
+            onClick={() => setShowApproverSelect((v) => !v)}
             className="text-[11px] font-semibold text-[#6666ff]"
           >
             変更
           </button>
         </div>
+        {showApproverSelect && (
+          <div className="mb-3 border border-[#dedee5] rounded-lg overflow-hidden">
+            <div className="px-3 py-1.5 bg-[#f1f1f5] text-[10px] font-semibold text-[#525261]">承認者を選択</div>
+            <select
+              className="w-full px-3 py-2 text-[12px] outline-none border-none bg-white"
+              value={selectedApprover}
+              onChange={(e) => {
+                setSelectedApprover(e.target.value);
+                setShowApproverSelect(false);
+              }}
+            >
+              <option value="自分(発注主)">自分(発注主)</option>
+              {USERS.filter((u) => u.id !== "u1").map((u) => (
+                <option key={u.id} value={u.name}>{u.name}</option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
 
       {/* Bottom bar */}
-      <div className="flex-none flex gap-2 px-4 py-3.5 border-t border-[#dedee5]">
-        {!isEdit && <Button variant="ghost">下書き保存</Button>}
+      <div className="flex-none flex items-center gap-2 px-4 py-3.5 border-t border-[#dedee5]">
+        {!isEdit && (
+          <Button
+            variant="ghost"
+            onClick={() => {
+              setSaved(true);
+              setTimeout(() => setSaved(false), 2000);
+            }}
+          >
+            {saved ? "--- 保存済み" : "下書き保存"}
+          </Button>
+        )}
         <Button full onClick={handlePublish} disabled={!canSubmit}>
           {isEdit ? "変更を保存" : "タスクを公開"}
         </Button>

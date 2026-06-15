@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { TopBar, PcHeader } from "@/components/atoms/TopBar";
 import { Button } from "@/components/atoms/Button";
 import { Avatar } from "@/components/atoms/Avatar";
 import { StatusPill } from "@/components/atoms/StatusPill";
@@ -291,14 +290,10 @@ function OrdererTab({
 
 // ─── PC Sub-components ────────────────────────────────────────────────────────
 
-const PC_CATEGORIES = ["すべて", "清掃", "配布", "デザイン", "飲食"] as const;
-type PcCategory = (typeof PC_CATEGORIES)[number];
-
 function PcSubNav({
-  subtab, onChangeTab, category, onCategoryChange,
+  subtab, onChangeTab,
 }: {
   subtab: SubTab; onChangeTab: (t: SubTab) => void;
-  category: PcCategory; onCategoryChange: (c: PcCategory) => void;
 }) {
   const { templates, tickets, getTicketsByTemplate, getMyActiveTickets, getMyOrderedTemplates } = useTaskContext();
   const tabs = [
@@ -326,40 +321,21 @@ function PcSubNav({
           </button>
         );
       })}
-      <div className="h-3" />
-      <div className="text-[9.5px] font-semibold text-[#9a9aa0] tracking-wide px-3 pb-1">フィルタ</div>
-      {PC_CATEGORIES.map((f) => {
-        const on = f === category;
-        return (
-          <button
-            key={f}
-            onClick={() => onCategoryChange(f)}
-            className={`px-3 py-1.5 text-left text-[11.5px] rounded-md transition-colors ${
-              on ? "font-semibold text-[#1a1a1a] bg-white/80" : "font-medium text-[#525261] hover:bg-white/60"
-            }`}
-          >
-            {f}
-          </button>
-        );
-      })}
     </div>
   );
 }
 
 function PcTaskList({
-  subtab, selectedId, onSelect, category = "すべて",
+  subtab, selectedId, onSelect,
 }: {
   subtab: SubTab; selectedId: string | null;
   onSelect: (templateId: string, ticketId?: string, context?: DetailContext) => void;
-  category?: PcCategory;
 }) {
   const { templates, tickets, getTicketsByTemplate, getMyActiveTickets } = useTaskContext();
-  const matchesCategory = (tmpl: { tags?: string[] }) =>
-    category === "すべて" || (tmpl.tags ?? []).includes(category);
 
   if (subtab === 0) {
     const openTemplates = templates.filter((tmpl) =>
-      getTicketsByTemplate(tmpl.id).some((t) => t.status === "open") && matchesCategory(tmpl)
+      getTicketsByTemplate(tmpl.id).some((t) => t.status === "open")
     );
     return (
       <div className="w-[300px] flex-none border-r border-[#dedee5] overflow-y-auto">
@@ -448,7 +424,6 @@ function TasksPageInner() {
 
   const [pcSelectedId, setPcSelectedId] = useState<string | null>(null);
   const [pcDetail, setPcDetail] = useState<DetailState>(null);
-  const [pcCategory, setPcCategory] = useState<PcCategory>("すべて");
 
   // ── handlers ──
   const openDetail = (templateId: string, ticketId: string | undefined, context: DetailContext) =>
@@ -576,8 +551,7 @@ function TasksPageInner() {
     <div className="flex flex-col h-full relative">
       {/* ── SP ── */}
       <div className="md:hidden flex flex-col h-full">
-        <TopBar title="タスク" />
-        <div className="flex-none flex border-b border-[#dedee5] px-3">
+        <div className="sticky top-0 z-20 bg-white flex-none flex border-b border-[#dedee5] px-3">
           {SUBTAB_LABELS.map((t, i) => {
             const on = i === subtab;
             return (
@@ -615,29 +589,21 @@ function TasksPageInner() {
 
         <button
           onClick={() => setPageMode({ type: "create" })}
-          className="absolute right-4 bottom-4 w-[52px] h-[52px] rounded-full bg-[#6666ff] text-white text-[24px] font-light flex items-center justify-center shadow-[0_4px_12px_rgba(0,0,0,.15)] z-10"
+          className="absolute right-4 bottom-4 w-[52px] h-[52px] rounded-full bg-[#1a1a1a] text-white text-[24px] font-light flex items-center justify-center shadow-[0_4px_12px_rgba(0,0,0,.15)] hover:bg-[#333] transition-colors z-10"
+          aria-label="新規タスク"
         >
           +
         </button>
       </div>
 
       {/* ── PC ── */}
-      <div className="hidden md:flex flex-col h-full">
-        <PcHeader
-          title="タスク"
-          sub="コミュニティ業務の募集・実行・承認"
-          right={
-            <Button size="sm" onClick={() => setPageMode({ type: "create" })}>+ 新規タスク</Button>
-          }
-        />
+      <div className="hidden md:flex flex-col h-full relative">
         <div className="flex flex-1 overflow-hidden">
           <PcSubNav
             subtab={subtab}
             onChangeTab={(t) => { setSubtab(t); setPcDetail(null); setPcSelectedId(null); }}
-            category={pcCategory}
-            onCategoryChange={setPcCategory}
           />
-          <PcTaskList subtab={subtab} selectedId={pcSelectedId} onSelect={handlePcSelect} category={pcCategory} />
+          <PcTaskList subtab={subtab} selectedId={pcSelectedId} onSelect={handlePcSelect} />
           <div className="flex-1 flex flex-col overflow-hidden min-w-0">
             {subtab === 2 ? (
               <OrdererTab
@@ -668,6 +634,15 @@ function TasksPageInner() {
             )}
           </div>
         </div>
+
+        {/* FAB */}
+        <button
+          onClick={() => setPageMode({ type: "create" })}
+          className="absolute right-6 bottom-6 w-[52px] h-[52px] rounded-full bg-[#1a1a1a] text-white text-[24px] font-light flex items-center justify-center shadow-[0_4px_12px_rgba(0,0,0,.15)] hover:bg-[#333] transition-colors z-10"
+          aria-label="新規タスク"
+        >
+          +
+        </button>
       </div>
 
       {/* ── SP Detail bottom sheet ── */}

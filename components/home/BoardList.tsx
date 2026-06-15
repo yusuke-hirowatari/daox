@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { Avatar } from "@/components/atoms/Avatar";
 import { RankBadge } from "@/components/atoms/RankBadge";
 import type { BoardPost, BoardComment } from "@/mocks/types";
@@ -11,14 +12,18 @@ interface BoardListProps {
 }
 
 export function BoardList({ posts, comments = [], onSelect }: BoardListProps) {
+  const [showAll, setShowAll] = useState(false);
+
   const countByPost = comments.reduce((m, c) => {
     m.set(c.postId, (m.get(c.postId) ?? 0) + 1);
     return m;
   }, new Map<string, number>());
 
+  const visiblePosts = showAll ? posts : posts.slice(0, 3);
+
   return (
     <div className="flex flex-col">
-      {posts.map((b) => {
+      {visiblePosts.map((b) => {
         const cc = countByPost.get(b.id) ?? 0;
         return (
           <div
@@ -51,11 +56,16 @@ export function BoardList({ posts, comments = [], onSelect }: BoardListProps) {
         );
       })}
 
-      <div className="py-4 text-center">
-        <button className="text-[11px] text-[#525261] font-semibold px-3.5 py-1.5 rounded-[999px] border border-[#bbbbc0] bg-white hover:bg-[#f1f1f5] transition-colors">
-          もっと見る
-        </button>
-      </div>
+      {!showAll && posts.length > 3 && (
+        <div className="py-4 text-center">
+          <button
+            onClick={() => setShowAll(true)}
+            className="text-[11px] text-[#525261] font-semibold px-3.5 py-1.5 rounded-[999px] border border-[#bbbbc0] bg-white hover:bg-[#f1f1f5] transition-colors"
+          >
+            もっと見る
+          </button>
+        </div>
+      )}
     </div>
   );
 }

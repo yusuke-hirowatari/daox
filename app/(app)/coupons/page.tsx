@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { TopBar, PcHeader, BackButton } from "@/components/atoms/TopBar";
+import { useState, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { TopBar, BackButton } from "@/components/atoms/TopBar";
 import { Button } from "@/components/atoms/Button";
 import { EmptyState } from "@/components/atoms/EmptyState";
 import { EXCHANGE_ITEMS, MY_VOUCHERS } from "@/mocks/coupons";
@@ -135,11 +135,20 @@ function fmtDate(iso: string): string {
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
-export default function CouponsPage() {
-  const router = useRouter();
+export default function CouponsPageWrapper() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center h-full"><span className="text-[#9a9aa0] text-[13px]">読み込み中...</span></div>}>
+      <CouponsPage />
+    </Suspense>
+  );
+}
 
-  const [view, setView] = useState<CouponView>("catalog");
-  const [pcMode, setPcMode] = useState<PcMode>("catalog");
+function CouponsPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  const [view, setView] = useState<CouponView>(searchParams.get("tab") === "my_list" ? "my_list" : "catalog");
+  const [pcMode, setPcMode] = useState<PcMode>(searchParams.get("tab") === "my_list" ? "my_list" : "catalog");
   const [selectedTmpl, setSelectedTmpl] = useState<ExchangeItem | null>(null);
   const [selectedInst, setSelectedInst] = useState<ExchangeVoucher | null>(null);
   const [balance, setBalance] = useState(DAO_BALANCE);
@@ -153,6 +162,7 @@ export default function CouponsPage() {
   const [pcModalTmpl, setPcModalTmpl] = useState<ExchangeItem | null>(null);
   const [pcUseInst, setPcUseInst] = useState<ExchangeVoucher | null>(null);
   const [spQty, setSpQty] = useState(1);
+  const [sortBy, setSortBy] = useState("人気順");
 
   const FILTERS = ["すべて", "飲食", "お買物", "理容・美容", "イベント"];
   const SORTS = ["人気順", "新着順", "価格 安い順", "価格 高い順"];
@@ -171,6 +181,22 @@ export default function CouponsPage() {
     m.set(ci.itemId, (m.get(ci.itemId) ?? 0) + 1);
     return m;
   }, new Map<string, number>());
+
+  // Sorted items for PC grid
+  const sortedItems = [...EXCHANGE_ITEMS].sort((a, b) => {
+    switch (sortBy) {
+      case "人気順":
+        return (b.isHot ? 1 : 0) - (a.isHot ? 1 : 0);
+      case "新着順":
+        return 0; // keep default order
+      case "価格 安い順":
+        return a.cost - b.cost;
+      case "価格 高い順":
+        return b.cost - a.cost;
+      default:
+        return 0;
+    }
+  });
 
   const handleOpenDetail = (tmpl: ExchangeItem) => {
     if (tmpl.isSoldout) return;
@@ -223,22 +249,6 @@ export default function CouponsPage() {
     <div className="hidden md:flex flex-col h-full bg-white">
       {pcMode === "catalog" ? (
         <>
-          <PcHeader
-            title="クーポン引換所"
-            sub="DAOトークン ⇄ 地域店舗のクーポン"
-            right={
-              <div className="flex items-center gap-3">
-                <span className="text-[11px] text-[#9a9aa0]">残高</span>
-                <span className="text-[14px] font-bold font-mono">{balance} DAO</span>
-                <button
-                  onClick={() => setPcMode("my_list")}
-                  className="text-[12px] font-semibold px-3 py-1.5 rounded-lg border border-[#dedee5] hover:bg-[#f1f1f5] transition-colors whitespace-nowrap"
-                >
-                  持っているクーポン ({activeInstances.length})
-                </button>
-              </div>
-            }
-          />
           <div className="flex flex-1 overflow-hidden">
             {/* Left filter */}
             <div className="w-[180px] flex-none border-r border-[#dedee5] bg-[#f1f1f5] px-2 py-3 flex flex-col gap-0.5 overflow-y-auto">
@@ -257,22 +267,23 @@ export default function CouponsPage() {
               ))}
               <div className="h-4" />
               <div className="text-[9.5px] text-[#9a9aa0] px-3 py-2 tracking-wide">並び順</div>
-              {SORTS.map((s, i) => (
-                <div
+              {SORTS.map((s) => (
+                <button
                   key={s}
-                  className={`px-3 py-1.5 text-[11.5px] cursor-pointer ${
-                    i === 0 ? "font-semibold text-[#1a1a1a]" : "font-medium text-[#525261]"
+                  onClick={() => setSortBy(s)}
+                  className={`px-3 py-1.5 text-[11.5px] cursor-pointer text-left w-full transition-colors ${
+                    s === sortBy ? "font-semibold text-[#1a1a1a] bg-white rounded-md" : "font-medium text-[#525261]"
                   }`}
                 >
                   {s}
-                </div>
+                </button>
               ))}
             </div>
 
             {/* Center grid */}
             <div className="flex-1 overflow-y-auto px-5 py-4">
               <div className="grid grid-cols-3 gap-3">
-                {EXCHANGE_ITEMS.map((c) => {
+                {sortedItems.map((c) => {
                   const out = c.isSoldout;
                   return (
                     <div
@@ -388,18 +399,6 @@ export default function CouponsPage() {
       ) : (
         /* PC My List */
         <>
-          <PcHeader
-            title="持っているクーポン"
-            sub="店頭でQRを提示して使用"
-            right={
-              <button
-                onClick={() => setPcMode("catalog")}
-                className="text-[12px] font-semibold px-3 py-1.5 rounded-lg border border-[#dedee5] hover:bg-[#f1f1f5] transition-colors"
-              >
-                引換所へ
-              </button>
-            }
-          />
           <div className="flex-1 overflow-y-auto px-6 py-4">
             {/* Tabs */}
             <div className="flex gap-3 mb-3.5">
@@ -922,7 +921,7 @@ export default function CouponsPage() {
 
             <div className="flex-1" />
             <button
-              onClick={() => setView("my_list")}
+              onClick={() => router.push("/dm")}
               className="mt-4 w-full py-3 rounded-xl border border-[#dedee5] text-[12px] font-semibold text-[#525261]"
             >
               使えませんでしたか? (運営に連絡)

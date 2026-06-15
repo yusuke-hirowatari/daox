@@ -74,6 +74,9 @@ function buildRows(
   items: AdminPost[],
   menuOpen: string | null,
   setMenuOpen: (id: string | null) => void,
+  onEdit: (id: string, title: string) => void,
+  onDuplicate: (id: string) => void,
+  onArchive: (id: string) => void,
 ): Record<string, ReactNode>[] {
   return items.map((i) => ({
     status: <AdminPill tone={STATUS_TONE[i.status]}>{i.status}</AdminPill>,
@@ -94,26 +97,19 @@ function buildRows(
           <div className="absolute right-0 top-full mt-1 w-40 bg-white border border-[#dedee5] rounded-lg shadow-lg z-20 py-1">
             <button
               className="w-full text-left px-3 py-2 text-[12px] hover:bg-[#f1f1f5]"
-              onClick={() => { alert(`「${i.title}」を編集します（デモ）`); setMenuOpen(null); }}
+              onClick={() => { onEdit(i.id, i.title); setMenuOpen(null); }}
             >
               編集
             </button>
             <button
               className="w-full text-left px-3 py-2 text-[12px] hover:bg-[#f1f1f5]"
-              onClick={() => { alert(`「${i.title}」を複製します（デモ）`); setMenuOpen(null); }}
+              onClick={() => { onDuplicate(i.id); setMenuOpen(null); }}
             >
               複製
             </button>
             <button
               className="w-full text-left px-3 py-2 text-[12px] text-[#6666ff] hover:bg-[#f1f1f5]"
-              onClick={() => {
-                if (i.status === "公開中") {
-                  alert(`「${i.title}」の公開を停止します（デモ）`);
-                } else {
-                  alert(`「${i.title}」をアーカイブします（デモ）`);
-                }
-                setMenuOpen(null);
-              }}
+              onClick={() => { onArchive(i.id); setMenuOpen(null); }}
             >
               {i.status === "公開中" ? "公開を停止" : "アーカイブ"}
             </button>
@@ -132,6 +128,10 @@ export default function AdminPostsPage() {
   const [menuOpen, setMenuOpen] = useState<string | null>(null);
   const [sortAsc, setSortAsc] = useState(true);
 
+  // Edit modal state
+  const [editingPost, setEditingPost] = useState<string | null>(null);
+  const [editPostTitle, setEditPostTitle] = useState("");
+
   // Creation form state
   const [creating, setCreating] = useState(false);
   const [newType, setNewType] = useState<PostType>("お知らせ");
@@ -139,6 +139,7 @@ export default function AdminPostsPage() {
   const [newBody, setNewBody] = useState("");
   const [newTag, setNewTag] = useState("");
   const [newDate, setNewDate] = useState("");
+  const [formError, setFormError] = useState("");
 
   // Close menu on outside click
   useEffect(() => {
@@ -160,9 +161,11 @@ export default function AdminPostsPage() {
   // Handle publish
   const handlePublish = () => {
     if (!newTitle.trim() || !newBody.trim()) {
-      alert("タイトルと本文を入力してください");
+      setFormError("タイトルと本文を入力してください");
+      setTimeout(() => setFormError(""), 3000);
       return;
     }
+    setFormError("");
     const post: AdminPost = {
       id: `p${Date.now()}`,
       status: "公開中",
@@ -175,7 +178,6 @@ export default function AdminPostsPage() {
     setPosts((prev) => [post, ...prev]);
     resetForm();
     setCreating(false);
-    alert("投稿を公開しました");
   };
 
   // Handle draft save
@@ -192,7 +194,6 @@ export default function AdminPostsPage() {
     setPosts((prev) => [post, ...prev]);
     resetForm();
     setCreating(false);
-    alert("下書きを保存しました");
   };
 
   // Handle cancel
@@ -201,8 +202,25 @@ export default function AdminPostsPage() {
     setCreating(false);
   };
 
+  const handleEditPost = (id: string, title: string) => {
+    setEditingPost(id);
+    setEditPostTitle(title);
+  };
+
+  const handleDuplicatePost = (id: string) => {
+    const original = posts.find(x => x.id === id);
+    if (original) {
+      const copy: AdminPost = { ...original, id: `p${Date.now()}`, title: `${original.title} (コピー)`, status: "下書き" };
+      setPosts(prev => [copy, ...prev]);
+    }
+  };
+
+  const handleArchivePost = (id: string) => {
+    setPosts(prev => prev.map(x => x.id === id ? {...x, status: "アーカイブ" as PostStatus} : x));
+  };
+
   const sortedPosts = sortAsc ? posts : [...posts].reverse();
-  const rows = buildRows(sortedPosts, menuOpen, setMenuOpen);
+  const rows = buildRows(sortedPosts, menuOpen, setMenuOpen, handleEditPost, handleDuplicatePost, handleArchivePost);
 
   return (
     <AdminPageShell
@@ -298,6 +316,9 @@ export default function AdminPostsPage() {
             </div>
 
             {/* Action buttons */}
+            {formError && (
+              <div className="mb-2 text-[12px] text-[#e53e3e] font-semibold">{formError}</div>
+            )}
             <div className="flex items-center gap-2 flex-wrap">
               <AdminBtn variant="accent" onClick={handlePublish}>公開する</AdminBtn>
               <AdminBtn variant="outline" onClick={handleDraft}>下書き保存</AdminBtn>
@@ -337,6 +358,33 @@ export default function AdminPostsPage() {
         {/* ── Table ──────────────────────────────────────────────── */}
         <AdminTable cols={COLS} rows={rows} rowHeight={44} />
       </div>
+
+      {/* Edit modal */}
+      {editingPost && (() => {
+        const item = posts.find(i => i.id === editingPost);
+        if (!item) return null;
+        return (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center">
+            <div className="absolute inset-0 bg-black/40" onClick={() => setEditingPost(null)} />
+            <div className="relative bg-white rounded-2xl w-full max-w-[480px] p-5">
+              <div className="flex items-center justify-between mb-4">
+                <span className="text-[14px] font-bold">投稿を編集</span>
+                <button onClick={() => setEditingPost(null)} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-[#f1f1f5]">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#525261" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                </button>
+              </div>
+              <div className="mb-3">
+                <div className="text-[11px] font-semibold text-[#525261] mb-1">タイトル</div>
+                <input className="w-full px-3 py-2 border border-[#dedee5] rounded-md text-[12.5px] outline-none focus:border-[#6666ff]" value={editPostTitle} onChange={(e) => setEditPostTitle(e.target.value)} />
+              </div>
+              <div className="flex gap-2">
+                <AdminBtn onClick={() => { setPosts(prev => prev.map(i => i.id === editingPost ? {...i, title: editPostTitle} : i)); setEditingPost(null); }}>保存</AdminBtn>
+                <AdminBtn variant="outline" onClick={() => setEditingPost(null)}>キャンセル</AdminBtn>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </AdminPageShell>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { TopBar, BackButton } from "@/components/atoms/TopBar";
 import { Button } from "@/components/atoms/Button";
 import { Avatar } from "@/components/atoms/Avatar";
@@ -23,6 +23,8 @@ function FieldLabel({ children }: { children: React.ReactNode }) {
 export function TaskReportPage({ ticketId, onBack, onSubmit }: Props) {
   const [reportText, setReportText] = useState("");
   const [reportDate, setReportDate] = useState("2026-05-28");
+  const [photoNames, setPhotoNames] = useState<(string | null)[]>([null, null, null]);
+  const fileInputRefs = [useRef<HTMLInputElement>(null), useRef<HTMLInputElement>(null), useRef<HTMLInputElement>(null)];
 
   const ticket = TASK_TICKETS.find((t) => t.id === ticketId);
   const tmpl = ticket ? TASK_TEMPLATES.find((t) => t.id === ticket.templateId) : null;
@@ -105,11 +107,34 @@ export function TaskReportPage({ ticketId, onBack, onSubmit }: Props) {
         <FieldLabel>写真 (任意)</FieldLabel>
         <div className="flex gap-2 mb-3">
           {[0, 1, 2].map((i) => (
-            <div
-              key={i}
-              className="w-[60px] h-[60px] rounded-lg border border-dashed border-[#bbbbc0] bg-[#f1f1f5] flex items-center justify-center text-[10.5px] text-[#9a9aa0] cursor-pointer"
-            >
-              {i === 0 ? "+ 写真" : ""}
+            <div key={i}>
+              <input
+                ref={fileInputRefs[i]}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    setPhotoNames((prev) => {
+                      const next = [...prev];
+                      next[i] = file.name;
+                      return next;
+                    });
+                  }
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => fileInputRefs[i].current?.click()}
+                className={`w-[60px] h-[60px] rounded-lg border border-dashed flex items-center justify-center text-[10.5px] cursor-pointer transition-colors ${
+                  photoNames[i]
+                    ? "border-[#6666ff] bg-[#eeeeff] text-[#6666ff] font-semibold"
+                    : "border-[#bbbbc0] bg-[#f1f1f5] text-[#9a9aa0] hover:bg-[#e8e8ef]"
+                }`}
+              >
+                {photoNames[i] ? "選択済" : (i === 0 ? "+ 写真" : "")}
+              </button>
             </div>
           ))}
         </div>

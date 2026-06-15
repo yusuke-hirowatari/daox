@@ -195,9 +195,8 @@ export default function NotificationsPage() {
       ══════════════════════════════════════════ */}
       <div className="flex flex-col flex-1 overflow-hidden md:hidden">
 
-        {/* Header */}
-        <div className="flex-none flex items-center gap-2 px-4 py-2.5 border-b border-[#dedee5]">
-          <div className="flex-1 min-w-0 text-[15px] font-semibold">通知</div>
+        {/* Mark all read + Tabs */}
+        <div className="flex-none flex items-center justify-end px-4 pt-1 pb-0">
           <button
             className="text-[10.5px] text-[#7a7a84] font-semibold disabled:opacity-40"
             onClick={markAllRead}
@@ -256,25 +255,6 @@ export default function NotificationsPage() {
       ══════════════════════════════════════════ */}
       <div className="hidden md:flex flex-col flex-1 overflow-hidden">
 
-        {/* PC Header */}
-        <div className="flex-none flex items-center gap-3 px-6 py-3 border-b border-[#dedee5]">
-          <h1 className="flex-1 text-[15px] font-semibold">通知</h1>
-          <button
-            className="text-[12px] text-[#7a7a84] font-medium px-3 py-1.5 rounded-lg hover:bg-[#f1f1f5] transition-colors disabled:opacity-40"
-            onClick={markAllRead}
-            disabled={!hasUnread}
-          >
-            すべて既読にする
-          </button>
-          <button
-            onClick={() => setShowSettings((v) => !v)}
-            className={`text-[12px] font-medium px-3 py-1.5 rounded-lg transition-colors ${
-              showSettings ? "bg-[#1a1a1a] text-white" : "text-[#7a7a84] hover:bg-[#f1f1f5]"
-            }`}
-          >
-            ⚙ 通知設定
-          </button>
-        </div>
 
         {/* PC Notification Settings dropdown */}
         {showSettings && (

@@ -1,12 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { TopBar, PcHeader, BackButton } from "@/components/atoms/TopBar";
+import { TopBar, BackButton } from "@/components/atoms/TopBar";
 import { Button } from "@/components/atoms/Button";
 import { Avatar } from "@/components/atoms/Avatar";
 import { RankBadge } from "@/components/atoms/RankBadge";
 import { getCurrentUser } from "@/mocks/users";
 import { RANKS, PREMIUM_REQS, DUTY_TYPES } from "@/mocks/rank";
+import Link from "next/link";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -248,9 +249,11 @@ interface ProfileData {
 interface EditProfileFormProps {
   data: ProfileData;
   onChange: (data: ProfileData) => void;
+  avatarPreview: string | null;
+  setAvatarPreview: (url: string | null) => void;
 }
 
-function EditProfileForm({ data, onChange }: EditProfileFormProps) {
+function EditProfileForm({ data, onChange, avatarPreview, setAvatarPreview }: EditProfileFormProps) {
   const [addingTag, setAddingTag] = useState(false);
   const [tagInput, setTagInput] = useState("");
 
@@ -267,14 +270,27 @@ function EditProfileForm({ data, onChange }: EditProfileFormProps) {
       {/* Avatar */}
       <EditField label="アイコン画像">
         <div className="flex items-center gap-4">
-          <Avatar size={56} label={data.name[0] ?? "?"} tone={0} />
+          {avatarPreview ? (
+            <img
+              src={avatarPreview}
+              alt="アバタープレビュー"
+              className="w-14 h-14 rounded-full object-cover flex-none"
+            />
+          ) : (
+            <Avatar size={56} label={data.name[0] ?? "?"} tone={0} />
+          )}
           <label className="text-[12px] font-semibold px-3 py-2 border border-[#dedee5] rounded-lg hover:bg-[#f1f1f5] transition-colors cursor-pointer">
             画像を変更
             <input
               type="file"
               accept="image/*"
               className="hidden"
-              onChange={() => alert("画像を選択しました（プレビュー機能は実装予定）")}
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) {
+                  setAvatarPreview(URL.createObjectURL(file));
+                }
+              }}
             />
           </label>
         </div>
@@ -373,22 +389,26 @@ export default function MyPage() {
   const [appliedDuties, setAppliedDuties] = useState<Set<number>>(new Set());
   const isPremium = CURRENT_VISITS >= PREMIUM_REQS.visits && CURRENT_DUTIES >= PREMIUM_REQS.duties;
 
+  // ── Avatar preview state ──
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+
+  // ── Settings inline-edit state ──
+  const [editingSetting, setEditingSetting] = useState<{ group: number; item: number } | null>(null);
+  const [settingsData, setSettingsData] = useState(
+    SETTINGS_GROUPS.map((g) => ({
+      label: g.label,
+      items: g.items.map((it) => ({ ...it })),
+    }))
+  );
+  const [editSettingValue, setEditSettingValue] = useState("");
+
+  // ── Share copied feedback ──
+  const [shareCopied, setShareCopied] = useState(false);
+
   // ─── PC section ───────────────────────────────────────────────────────────
 
   const pcSection = (
     <div className="hidden md:flex flex-col h-full bg-white">
-      <PcHeader
-        title={profile.name}
-        sub={`@taro.tanaka · 新富商店街コミュニティ`}
-        right={
-          <button
-            onClick={handleEditStart}
-            className="text-[12px] font-semibold px-3 py-1.5 rounded-lg border border-[#dedee5] hover:bg-[#f1f1f5] transition-colors"
-          >
-            プロフィールを編集
-          </button>
-        }
-      />
       <div className="flex flex-1 overflow-hidden">
         {/* Left identity panel */}
         <div className="w-[280px] flex-none border-r border-[#dedee5] bg-[#f1f1f5] p-5 flex flex-col gap-4 overflow-y-auto">
@@ -550,24 +570,68 @@ export default function MyPage() {
             {/* Tab 3: Settings */}
             {pcTab === 3 && (
               <div className="max-w-lg">
-                {SETTINGS_GROUPS.map((g) => (
+                {settingsData.map((g, gi) => (
                   <div key={g.label} className="mb-4">
                     <div className="text-[10px] font-bold text-[#9a9aa0] tracking-widest font-mono uppercase pb-1.5">
                       {g.label}
                     </div>
-                    {g.items.map((it, i) => (
-                      <div
-                        key={i}
-                        className="flex items-center justify-between px-0 py-3 border-b border-[#dedee5] text-[12.5px]"
-                      >
-                        <span>{it.k}</span>
-                        <span className="text-[#9a9aa0]">{it.v} ›</span>
-                      </div>
-                    ))}
+                    {g.items.map((it, i) => {
+                      const isEditing = editingSetting?.group === gi && editingSetting?.item === i;
+                      return isEditing ? (
+                        <div
+                          key={i}
+                          className="flex items-center gap-2 px-0 py-2 border-b border-[#dedee5] text-[12.5px]"
+                        >
+                          <span className="flex-none">{it.k}</span>
+                          <input
+                            autoFocus
+                            value={editSettingValue}
+                            onChange={(e) => setEditSettingValue(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                setSettingsData((prev) => {
+                                  const next = prev.map((g2) => ({ ...g2, items: g2.items.map((it2) => ({ ...it2 })) }));
+                                  next[gi].items[i].v = editSettingValue;
+                                  return next;
+                                });
+                                setEditingSetting(null);
+                              }
+                              if (e.key === "Escape") setEditingSetting(null);
+                            }}
+                            className="flex-1 h-8 border border-[#6666ff] rounded-md px-2 text-[12.5px] outline-none"
+                          />
+                          <button
+                            onClick={() => {
+                              setSettingsData((prev) => {
+                                const next = prev.map((g2) => ({ ...g2, items: g2.items.map((it2) => ({ ...it2 })) }));
+                                next[gi].items[i].v = editSettingValue;
+                                return next;
+                              });
+                              setEditingSetting(null);
+                            }}
+                            className="text-[11px] font-semibold text-[#6666ff] px-2"
+                          >
+                            保存
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          key={i}
+                          onClick={() => {
+                            setEditingSetting({ group: gi, item: i });
+                            setEditSettingValue(it.v);
+                          }}
+                          className="w-full flex items-center justify-between px-0 py-3 border-b border-[#dedee5] text-[12.5px] hover:bg-[#fafafa] transition-colors text-left"
+                        >
+                          <span>{it.k}</span>
+                          <span className="text-[#9a9aa0]">{it.v} ›</span>
+                        </button>
+                      );
+                    })}
                   </div>
                 ))}
                 <div className="pt-4">
-                  <Button variant="ghost" full>
+                  <Button variant="ghost" full onClick={() => { if (window.confirm("ログアウトしますか？")) window.location.href = "/login"; }}>
                     ログアウト
                   </Button>
                 </div>
@@ -586,7 +650,6 @@ export default function MyPage() {
     return (
       <div className="flex flex-col h-full">
         <div className="md:hidden flex flex-col h-full bg-[#f5f5f7]">
-          <TopBar title="マイページ" />
           <div className="flex-1 overflow-y-auto">
             {/* Profile card */}
             <div className="mx-4 mt-4 mb-3 bg-white rounded-2xl border border-[#dedee5] overflow-hidden">
@@ -773,24 +836,68 @@ export default function MyPage() {
             left={<BackButton onClick={() => setView("hub")} />}
           />
           <div className="flex-1 overflow-y-auto">
-            {SETTINGS_GROUPS.map((g) => (
+            {settingsData.map((g, gi) => (
               <div key={g.label}>
                 <div className="px-5 pt-3.5 pb-1.5 text-[10px] font-bold text-[#9a9aa0] tracking-widest font-mono uppercase">
                   {g.label}
                 </div>
-                {g.items.map((it, i) => (
-                  <div
-                    key={i}
-                    className="flex items-center justify-between px-5 py-3 border-b border-[#dedee5] bg-white text-[12.5px]"
-                  >
-                    <span>{it.k}</span>
-                    <span className="text-[#9a9aa0] text-[12px]">{it.v} ›</span>
-                  </div>
-                ))}
+                {g.items.map((it, i) => {
+                  const isEditing = editingSetting?.group === gi && editingSetting?.item === i;
+                  return isEditing ? (
+                    <div
+                      key={i}
+                      className="flex items-center gap-2 px-5 py-2 border-b border-[#dedee5] bg-white text-[12.5px]"
+                    >
+                      <span className="flex-none">{it.k}</span>
+                      <input
+                        autoFocus
+                        value={editSettingValue}
+                        onChange={(e) => setEditSettingValue(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            setSettingsData((prev) => {
+                              const next = prev.map((g2) => ({ ...g2, items: g2.items.map((it2) => ({ ...it2 })) }));
+                              next[gi].items[i].v = editSettingValue;
+                              return next;
+                            });
+                            setEditingSetting(null);
+                          }
+                          if (e.key === "Escape") setEditingSetting(null);
+                        }}
+                        className="flex-1 h-8 border border-[#6666ff] rounded-md px-2 text-[12.5px] outline-none"
+                      />
+                      <button
+                        onClick={() => {
+                          setSettingsData((prev) => {
+                            const next = prev.map((g2) => ({ ...g2, items: g2.items.map((it2) => ({ ...it2 })) }));
+                            next[gi].items[i].v = editSettingValue;
+                            return next;
+                          });
+                          setEditingSetting(null);
+                        }}
+                        className="text-[11px] font-semibold text-[#6666ff] px-2"
+                      >
+                        保存
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      key={i}
+                      onClick={() => {
+                        setEditingSetting({ group: gi, item: i });
+                        setEditSettingValue(it.v);
+                      }}
+                      className="w-full flex items-center justify-between px-5 py-3 border-b border-[#dedee5] bg-white text-[12.5px] hover:bg-[#fafafa] transition-colors text-left"
+                    >
+                      <span>{it.k}</span>
+                      <span className="text-[#9a9aa0] text-[12px]">{it.v} ›</span>
+                    </button>
+                  );
+                })}
               </div>
             ))}
             <div className="px-5 py-5">
-              <Button variant="ghost" full>
+              <Button variant="ghost" full onClick={() => { if (window.confirm("ログアウトしますか？")) window.location.href = "/login"; }}>
                 ログアウト
               </Button>
             </div>
@@ -810,7 +917,7 @@ export default function MyPage() {
           <TopBar
             title="ランクとXP"
             left={<BackButton onClick={() => setView("hub")} />}
-            right={<span className="text-[13px] text-[#9a9aa0]">履歴</span>}
+            right={<button onClick={() => setView("activity")} className="text-[13px] text-[#6666ff] font-semibold">履歴</button>}
           />
           <div className="flex-1 overflow-y-auto">
             <div className="px-4 py-3.5">
@@ -861,7 +968,7 @@ export default function MyPage() {
               <div className="text-[10px] font-bold text-[#9a9aa0] tracking-widest font-mono">
                 ━━ 募集中の担い手活動
               </div>
-              <span className="text-[10px] text-[#9a9aa0]">すべて →</span>
+              <Link href="/tasks" className="text-[10px] text-[#6666ff] font-semibold hover:opacity-70 transition-opacity">すべて →</Link>
             </div>
             <div className="px-4 pb-3.5 flex flex-col gap-2">
               {DUTY_OFFERINGS.map((d, i) => {
@@ -1077,7 +1184,17 @@ export default function MyPage() {
               )}
             </div>
             <div className="flex flex-col gap-2 w-full">
-              <Button full>シェアする</Button>
+              <Button full onClick={() => {
+                if (navigator.share) {
+                  navigator.share({ title: "DAOX", text: "プレミアムランクに昇格しました！" });
+                } else {
+                  navigator.clipboard.writeText("プレミアムランクに昇格しました！ #DAOX");
+                  setShareCopied(true);
+                  setTimeout(() => setShareCopied(false), 2000);
+                }
+              }}>
+                {shareCopied ? "コピーしました！" : "シェアする"}
+              </Button>
               <Button variant="ghost" full onClick={() => setView("hub")}>
                 続ける
               </Button>
@@ -1108,32 +1225,13 @@ export default function MyPage() {
             }
           />
           <div className="flex-1 overflow-y-auto p-4">
-            <EditProfileForm data={editDraft} onChange={setEditDraft} />
+            <EditProfileForm data={editDraft} onChange={setEditDraft} avatarPreview={avatarPreview} setAvatarPreview={setAvatarPreview} />
           </div>
         </div>
         <div className="hidden md:flex flex-col h-full">
-          <PcHeader
-            title="プロフィールを編集"
-            right={
-              <>
-                <button
-                  onClick={() => setView("hub")}
-                  className="text-[12px] font-medium px-3 py-1.5 rounded-lg border border-[#dedee5] hover:bg-[#f1f1f5] transition-colors"
-                >
-                  キャンセル
-                </button>
-                <button
-                  onClick={handleEditSave}
-                  className="text-[12px] font-semibold px-3 py-1.5 rounded-lg bg-[#1a1a1a] text-white hover:bg-[#333] transition-colors"
-                >
-                  保存
-                </button>
-              </>
-            }
-          />
           <div className="flex-1 overflow-y-auto">
             <div className="max-w-[560px] mx-auto p-6">
-              <EditProfileForm data={editDraft} onChange={setEditDraft} />
+              <EditProfileForm data={editDraft} onChange={setEditDraft} avatarPreview={avatarPreview} setAvatarPreview={setAvatarPreview} />
             </div>
           </div>
         </div>

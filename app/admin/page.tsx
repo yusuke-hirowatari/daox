@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Avatar } from "@/components/atoms/Avatar";
 import { StatCard, AdminBtn, BarChart } from "@/components/admin/atoms";
@@ -58,10 +59,18 @@ const ENGAGEMENT_DATA = [
 ];
 
 const QUICK_ACTIONS = [
-  { icon: "◉", label: "お知らせを配信",   variant: "primary"  as const },
-  { icon: "+", label: "投票を作成",         variant: "outline" as const },
-  { icon: "◈", label: "トークンを発行",     variant: "outline" as const },
-  { icon: "✉", label: "メンバーを招待",    variant: "outline" as const },
+  { icon: "◉", label: "お知らせを配信",   variant: "primary"  as const, href: "/admin/posts" },
+  { icon: "+", label: "投票を作成",         variant: "outline" as const, href: "/admin/board" },
+  { icon: "◈", label: "トークンを発行",     variant: "outline" as const, href: "/admin/tokens" },
+  { icon: "✉", label: "メンバーを招待",    variant: "outline" as const, href: "/admin/members" },
+];
+
+const MORE_ACTIVITIES = [
+  { t: "3時間前", who: "鈴木 花子", tone: 1, what: "がタスクを完了: 見守り隊", amt: "+30" },
+  { t: "4時間前", who: "中島 健",   tone: 0, what: "が投稿にコメント",          amt: null },
+  { t: "5時間前", who: "小林 真理", tone: 1, what: "が新メンバーを紹介",        amt: "+100" },
+  { t: "昨日",    who: "田中 太郎", tone: 0, what: "がお知らせを配信",          amt: null },
+  { t: "昨日",    who: "佐藤 一郎", tone: 2, what: "がチェックイン 3店舗",      amt: "+30" },
 ];
 
 // ─── Page ─────────────────────────────────────────────────────────────────
@@ -70,11 +79,32 @@ const PERIODS = ["今日", "今週", "今月", "全期間"] as const;
 
 export default function AdminDashboardPage() {
   const [period, setPeriod] = useState("今週");
+  const [showAllActivity, setShowAllActivity] = useState(false);
+  const router = useRouter();
 
   function cyclePeriod() {
     const idx = PERIODS.indexOf(period as typeof PERIODS[number]);
     const next = PERIODS[(idx + 1) % PERIODS.length];
     setPeriod(next);
+  }
+
+  function downloadCSV() {
+    const header = "指標,値,変化,期間";
+    const rows = [
+      ["メンバー","312","+8","今週"],
+      ["DAU","94","+12%","先週比"],
+      ["チェックイン","248","+18%","今週"],
+      ["完了タスク","42","+6","今週"],
+      ["トークン流通","58,420","2.1%","DAO"],
+    ];
+    const csv = [header, ...rows.map(r => r.join(","))].join("\n");
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `dashboard_${new Date().toISOString().slice(0,10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
   }
 
   return (
@@ -90,7 +120,7 @@ export default function AdminDashboardPage() {
           </div>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          <AdminBtn variant="ghost" icon="↓" onClick={() => alert("CSVファイルのダウンロードを開始しました（デモ）")}>CSV書き出し</AdminBtn>
+          <AdminBtn variant="ghost" icon="↓" onClick={downloadCSV}>CSV書き出し</AdminBtn>
           <AdminBtn variant="outline" icon="🕒" onClick={cyclePeriod}>期間: {period}</AdminBtn>
         </div>
       </div>
@@ -186,13 +216,13 @@ export default function AdminDashboardPage() {
                   </div>
                   <button
                     className="text-[11px] text-[#525261] cursor-pointer hover:text-[#1a1a1a]"
-                    onClick={() => alert("アクティビティ一覧は今後実装予定です")}
+                    onClick={() => setShowAllActivity(prev => !prev)}
                   >
-                    すべて見る →
+                    {showAllActivity ? "閉じる" : "すべて見る →"}
                   </button>
                 </div>
                 <div>
-                  {ACTIVITIES.map((a, i) => (
+                  {(showAllActivity ? [...ACTIVITIES, ...MORE_ACTIVITIES] : ACTIVITIES).map((a, i) => (
                     <div
                       key={i}
                       className="flex items-center gap-2.5 py-[9px] border-b border-[#dedee5] last:border-b-0"
@@ -262,7 +292,7 @@ export default function AdminDashboardPage() {
                 </div>
                 <div className="flex flex-col gap-1.5">
                   {QUICK_ACTIONS.map((q) => (
-                    <AdminBtn key={q.label} variant={q.variant} icon={q.icon} onClick={() => alert(`「${q.label}」画面は今後実装予定です`)}>
+                    <AdminBtn key={q.label} variant={q.variant} icon={q.icon} onClick={() => router.push(q.href)}>
                       {q.label}
                     </AdminBtn>
                   ))}

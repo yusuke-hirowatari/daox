@@ -67,14 +67,39 @@ export default function AdminShopsPage() {
   const [email, setEmail] = useState("kotori@example.com");
   const [bio, setBio] = useState("こだわりのスペシャルティコーヒーと自家製スイーツのお店。Wi-Fi完備。");
 
+  // Draft / register states
+  const [draftSaved, setDraftSaved] = useState(false);
+  const [registered, setRegistered] = useState(false);
+
+  // Shop image state
+  const [shopImage, setShopImage] = useState(false);
+  const [imageUploading, setImageUploading] = useState(false);
+
+  // QR fullscreen modal
+  const [showQr, setShowQr] = useState(false);
+
+  // Setting save feedback
+  const [savedSetting, setSavedSetting] = useState<string | null>(null);
+
+  // Checkin settings state
+  const [checkinSettings, setCheckinSettings] = useState(CHECKIN_SETTINGS);
+  const [editingSetting, setEditingSetting] = useState<string | null>(null);
+  const [editSettingValue, setEditSettingValue] = useState("");
+
+  // Owner state
+  const [ownerName, setOwnerName] = useState("伊藤 さくら");
+  const [ownerHandle, setOwnerHandle] = useState("@sakura.ito");
+  const [editingOwner, setEditingOwner] = useState(false);
+  const [ownerSearch, setOwnerSearch] = useState("");
+
   return (
     <AdminPageShell
       breadcrumbs="HOME › 店舗 › 新規"
       title="店舗を登録"
       actions={
         <>
-          <AdminBtn variant="ghost" onClick={() => alert("下書きを保存しました（デモ）")}>下書き保存</AdminBtn>
-          <AdminBtn onClick={() => alert("店舗を登録してQRコードを発行しました（デモ）")}>登録してQRを発行</AdminBtn>
+          <AdminBtn variant="ghost" onClick={() => { setDraftSaved(true); setTimeout(() => setDraftSaved(false), 2000); }}>{draftSaved ? "✓ 保存しました" : "下書き保存"}</AdminBtn>
+          <AdminBtn onClick={() => { if (!shopName.trim()) { return; } setRegistered(true); }}>{registered ? "✓ 登録済み" : "登録してQRを発行"}</AdminBtn>
         </>
       }
     >
@@ -92,10 +117,21 @@ export default function AdminShopsPage() {
                   className="flex items-center justify-center rounded-xl bg-[#f1f1f5] text-[#9a9aa0] text-[24px] font-bold flex-none"
                   style={{ width: 64, height: 64 }}
                 >
-                  🏪
+                  {shopImage ? "✓" : "🏪"}
                 </div>
-                <AdminBtn variant="outline" onClick={() => alert("画像の変更画面は今後実装予定です")}>画像を変更</AdminBtn>
-                <AdminBtn variant="ghost" onClick={() => alert("画像を削除しました（デモ）")}>削除</AdminBtn>
+                <AdminBtn variant="outline" onClick={() => {
+                  const input = document.createElement("input");
+                  input.type = "file";
+                  input.accept = "image/*";
+                  input.onchange = () => {
+                    if (input.files && input.files.length > 0) {
+                      setImageUploading(true);
+                      setTimeout(() => { setImageUploading(false); setShopImage(true); }, 800);
+                    }
+                  };
+                  input.click();
+                }}>{imageUploading ? "アップロード中…" : "画像を変更"}</AdminBtn>
+                <AdminBtn variant="ghost" onClick={() => setShopImage(false)}>削除</AdminBtn>
               </div>
             </div>
 
@@ -185,20 +221,42 @@ export default function AdminShopsPage() {
               チェックイン設定
             </div>
             <div className="border border-[#dedee5] rounded-lg overflow-hidden mb-4">
-              {CHECKIN_SETTINGS.map(({ k, v }) => (
-                <div
-                  key={k}
-                  className="flex items-center px-3.5 py-2 border-b border-[#dedee5] last:border-b-0 text-[11.5px]"
-                >
+              {checkinSettings.map(({ k, v }) => (
+                <div key={k} className="flex items-center px-3.5 py-2 border-b border-[#dedee5] last:border-b-0 text-[11.5px]">
                   <span className="w-[130px] text-[#9a9aa0] flex-none">{k}</span>
-                  <span className={`flex-1 font-semibold ${k.includes("報酬") ? "font-mono" : ""}`}>
-                    {v}
-                  </span>
+                  {editingSetting === k ? (
+                    <input
+                      className="flex-1 px-2 py-1 border border-[#6666ff] rounded text-[11.5px] font-semibold outline-none"
+                      value={editSettingValue}
+                      onChange={(e) => setEditSettingValue(e.target.value)}
+                      autoFocus
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          setCheckinSettings(prev => prev.map(s => s.k === k ? {...s, v: editSettingValue} : s));
+                          setEditingSetting(null);
+                          setSavedSetting(k);
+                          setTimeout(() => setSavedSetting(null), 1500);
+                        }
+                      }}
+                    />
+                  ) : (
+                    <span className={`flex-1 font-semibold ${k.includes("報酬") ? "font-mono" : ""}`}>{v}</span>
+                  )}
                   <button
-                    className="text-[10px] text-[#6666ff] font-semibold cursor-pointer hover:underline"
-                    onClick={() => alert("チェックイン設定の変更画面は今後実装予定です")}
+                    className={`text-[10px] font-semibold cursor-pointer hover:underline ${savedSetting === k ? "text-green-600" : "text-[#6666ff]"}`}
+                    onClick={() => {
+                      if (editingSetting === k) {
+                        setCheckinSettings(prev => prev.map(s => s.k === k ? {...s, v: editSettingValue} : s));
+                        setEditingSetting(null);
+                        setSavedSetting(k);
+                        setTimeout(() => setSavedSetting(null), 1500);
+                      } else {
+                        setEditingSetting(k);
+                        setEditSettingValue(v);
+                      }
+                    }}
                   >
-                    変更
+                    {savedSetting === k ? "✓ 保存済" : editingSetting === k ? "保存" : "変更"}
                   </button>
                 </div>
               ))}
@@ -208,19 +266,46 @@ export default function AdminShopsPage() {
             <div className="text-[12px] font-bold text-[#525261] mb-2.5">
               オーナー (店舗管理者)
             </div>
-            <div className="flex items-center gap-3 p-3 border border-[#dedee5] rounded-lg bg-[#f1f1f5]">
-              <Avatar size={32} label="伊" tone={1} />
-              <div className="flex-1">
-                <div className="text-[12px] font-semibold">伊藤 さくら</div>
-                <div className="text-[10.5px] text-[#9a9aa0] font-mono">@sakura.ito</div>
+            {editingOwner ? (
+              <div className="flex items-center gap-3 p-3 border border-[#6666ff] rounded-lg bg-white">
+                <div className="flex-1">
+                  <div className="text-[11px] font-semibold text-[#525261] mb-1">新しいオーナーを選択</div>
+                  <input
+                    className="w-full px-2 py-1.5 border border-[#dedee5] rounded text-[12px] outline-none focus:border-[#6666ff]"
+                    placeholder="名前で検索..."
+                    value={ownerSearch}
+                    onChange={(e) => setOwnerSearch(e.target.value)}
+                  />
+                  <div className="mt-2 flex flex-col gap-1">
+                    {[
+                      { name: "田中 太郎", handle: "@taro.tanaka" },
+                      { name: "佐藤 一郎", handle: "@ichiro.sato" },
+                      { name: "高橋 美咲", handle: "@misaki.takahashi" },
+                    ].filter(m => !ownerSearch || m.name.includes(ownerSearch)).map(m => (
+                      <button
+                        key={m.handle}
+                        className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-[#f1f1f5] text-left text-[12px]"
+                        onClick={() => { setOwnerName(m.name); setOwnerHandle(m.handle); setEditingOwner(false); setOwnerSearch(""); }}
+                      >
+                        <Avatar size={20} label={m.name[0]} tone={0} />
+                        <span className="font-semibold">{m.name}</span>
+                        <span className="text-[10px] text-[#9a9aa0] font-mono">{m.handle}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <button className="text-[10.5px] text-[#9a9aa0] cursor-pointer hover:underline self-start" onClick={() => setEditingOwner(false)}>キャンセル</button>
               </div>
-              <button
-                className="text-[10.5px] text-[#6666ff] font-semibold cursor-pointer hover:underline"
-                onClick={() => alert("店舗管理者の変更画面は今後実装予定です")}
-              >
-                変更
-              </button>
-            </div>
+            ) : (
+              <div className="flex items-center gap-3 p-3 border border-[#dedee5] rounded-lg bg-[#f1f1f5]">
+                <Avatar size={32} label={ownerName[0]} tone={1} />
+                <div className="flex-1">
+                  <div className="text-[12px] font-semibold">{ownerName}</div>
+                  <div className="text-[10.5px] text-[#9a9aa0] font-mono">{ownerHandle}</div>
+                </div>
+                <button className="text-[10.5px] text-[#6666ff] font-semibold cursor-pointer hover:underline" onClick={() => setEditingOwner(true)}>変更</button>
+              </div>
+            )}
             <div className="text-[10.5px] text-[#9a9aa0] mt-1.5 leading-[1.5]">
               店舗オーナーは「運営者ビュー」で店舗QR表示・チェックイン状況確認・クーポン発行が可能
             </div>
@@ -233,14 +318,21 @@ export default function AdminShopsPage() {
         >
           <div className="text-[12px] font-bold mb-3">QRプレビュー</div>
 
-          <div className="p-3.5 bg-white border border-[#dedee5] rounded-[10px] mb-3.5">
-            <div className="text-[11.5px] font-bold mb-0.5">新富カフェ ことり</div>
+          <div
+            onClick={() => setShowQr(true)}
+            className="p-3.5 bg-white border border-[#dedee5] rounded-[10px] mb-3.5 cursor-pointer hover:border-[#9a9aa0] hover:shadow-sm transition-all"
+            title="クリックして拡大表示"
+          >
+            <div className="text-[11.5px] font-bold mb-0.5">{shopName || "新富カフェ ことり"}</div>
             <div className="text-[10px] text-[#9a9aa0] mb-3">+10 DAO / チェックイン</div>
             <div className="flex justify-center py-1">
               <FakeQR size={160} />
             </div>
             <div className="text-[9.5px] text-[#9a9aa0] font-mono text-center mt-2">
               shop_kotori_a4f9c2
+            </div>
+            <div className="text-[9px] text-[#6666ff] text-center mt-1.5 font-semibold">
+              クリックして拡大 ↗
             </div>
           </div>
 
@@ -249,7 +341,16 @@ export default function AdminShopsPage() {
               <button
                 key={d}
                 className="flex items-center gap-2 px-3 py-2 border border-[#dedee5] rounded-md bg-white text-[11px] cursor-pointer hover:border-[#9a9aa0] w-full text-left"
-                onClick={() => alert("QRコードのダウンロードを開始しました（デモ）")}
+                onClick={() => {
+                  const content = `QR Code: shop_kotori_a4f9c2\nFormat: ${d}\nGenerated: ${new Date().toISOString()}`;
+                  const blob = new Blob([content], { type: "text/plain" });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement("a");
+                  a.href = url;
+                  a.download = `qr_kotori_${d.replace(/\s/g, "_").toLowerCase()}.txt`;
+                  a.click();
+                  URL.revokeObjectURL(url);
+                }}
               >
                 <span className="flex-1">{d}</span>
                 <span className="text-[10px] text-[#6666ff] font-semibold">↓</span>
@@ -263,6 +364,27 @@ export default function AdminShopsPage() {
           </div>
         </div>
       </div>
+
+      {/* ── QR Fullscreen Modal ── */}
+      {showQr && (
+        <div
+          className="fixed inset-0 z-50 bg-[#1a1a1a]/90 flex flex-col items-center justify-center cursor-pointer"
+          onClick={() => setShowQr(false)}
+        >
+          <div className="text-white text-[18px] font-bold mb-5">
+            {shopName || "新富カフェ ことり"}
+          </div>
+          <div className="p-5 bg-white rounded-2xl shadow-2xl">
+            <FakeQR size={280} />
+          </div>
+          <div className="text-[11px] text-white/60 font-mono mt-4">
+            shop_kotori_a4f9c2
+          </div>
+          <div className="text-[13px] text-white/50 mt-6">
+            タップして閉じる
+          </div>
+        </div>
+      )}
     </AdminPageShell>
   );
 }

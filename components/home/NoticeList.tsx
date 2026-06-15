@@ -1,3 +1,6 @@
+"use client";
+
+import { useState } from "react";
 import type { Notice } from "@/mocks/types";
 
 interface NoticeListProps {
@@ -6,8 +9,12 @@ interface NoticeListProps {
 }
 
 export function NoticeList({ notices, onSelect }: NoticeListProps) {
+  const [showAll, setShowAll] = useState(false);
+
   const pinned = notices.filter((n) => n.isPinned);
   const hasPinned = pinned.length > 0;
+
+  const visibleNotices = showAll ? notices : notices.slice(0, 3);
 
   return (
     <div className="flex flex-col">
@@ -19,7 +26,7 @@ export function NoticeList({ notices, onSelect }: NoticeListProps) {
         </div>
       )}
 
-      {notices.map((n) => (
+      {visibleNotices.map((n) => (
         <div
           key={n.id}
           onClick={() => onSelect?.(n)}
@@ -49,11 +56,16 @@ export function NoticeList({ notices, onSelect }: NoticeListProps) {
       ))}
 
       {/* 過去ログ導線 */}
-      <div className="py-4 text-center">
-        <button className="text-[11px] text-[#525261] font-semibold px-3.5 py-1.5 rounded-[999px] border border-[#bbbbc0] bg-white hover:bg-[#f1f1f5] transition-colors">
-          過去のお知らせを見る
-        </button>
-      </div>
+      {!showAll && notices.length > 3 && (
+        <div className="py-4 text-center">
+          <button
+            onClick={() => setShowAll(true)}
+            className="text-[11px] text-[#525261] font-semibold px-3.5 py-1.5 rounded-[999px] border border-[#bbbbc0] bg-white hover:bg-[#f1f1f5] transition-colors"
+          >
+            過去のお知らせを見る
+          </button>
+        </div>
+      )}
     </div>
   );
 }

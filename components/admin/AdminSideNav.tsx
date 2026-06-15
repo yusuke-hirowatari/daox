@@ -35,6 +35,7 @@ const NAV_SECTIONS: NavSection[] = [
       { id: "board", href: "/admin/board", label: "掲示板", icon: "\u{1F4CB}", badge: 3, superOnly: false },
       { id: "posts", href: "/admin/posts", label: "投稿",   icon: "\u{1F4DD}", badge: 0, superOnly: false },
       { id: "tasks", href: "/admin/tasks", label: "タスク",  icon: "\u2611",    badge: 0, superOnly: false },
+      { id: "votes", href: "/admin/votes", label: "投票",    icon: "\u{1F5F3}", badge: 0, superOnly: false },
     ],
   },
   {

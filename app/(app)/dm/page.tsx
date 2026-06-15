@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef } from "react";
-import { TopBar, PcHeader } from "@/components/atoms/TopBar";
+import { TopBar } from "@/components/atoms/TopBar";
 import { Avatar } from "@/components/atoms/Avatar";
 import { RankBadge } from "@/components/atoms/RankBadge";
 import { EmptyState } from "@/components/atoms/EmptyState";
@@ -9,8 +9,9 @@ import {
   DM_THREADS,
   getMessagesByThreadId,
 } from "@/mocks/dm";
+import { ProfileModal } from "@/components/shared/ProfileModal";
 import { USERS, getUserById, CURRENT_USER_ID } from "@/mocks/users";
-import type { DmThread, DmMessage } from "@/mocks/types";
+import type { DmThread, DmMessage, User } from "@/mocks/types";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -272,6 +273,46 @@ export default function DmPage() {
   const [groupNameEdit, setGroupNameEdit] = useState("");
   const [isEditingGroupName, setIsEditingGroupName] = useState(false);
   const [addMemberQuery, setAddMemberQuery] = useState("");
+  const [profileUser, setProfileUser] = useState<User | null>(null);
+
+  // Sort / filter state for member lists
+  const [memberSort, setMemberSort] = useState<"name"|"online"|"role">("name");
+  const [spSearchQuery, setSpSearchQuery] = useState("");
+  const [memberFilter, setMemberFilter] = useState<"all"|"運営"|"店主">("all");
+
+  const cycleMemberSort = () => {
+    setMemberSort((prev) => {
+      if (prev === "name") return "online";
+      if (prev === "online") return "role";
+      return "name";
+    });
+  };
+
+  const memberSortLabel =
+    memberSort === "name" ? "名前順 ▾" : memberSort === "online" ? "オンライン順 ▾" : "役職順 ▾";
+
+  const ROLE_ORDER: Record<string, number> = { "運営": 0, "店主": 1, "メンバー": 2 };
+
+  function sortedAndFilteredMembers(users: User[]) {
+    let list = users.filter((u) => u.id !== CURRENT_USER_ID);
+
+    // Apply member filter
+    if (memberFilter !== "all") {
+      list = list.filter((u) => getMemberRole(u.id) === memberFilter);
+    }
+
+    // Apply sort
+    if (memberSort === "name") {
+      list = [...list].sort((a, b) => a.name.localeCompare(b.name, "ja"));
+    } else if (memberSort === "online") {
+      list = [...list].sort((a, b) => (b.isOnline ? 1 : 0) - (a.isOnline ? 1 : 0));
+    } else {
+      list = [...list].sort(
+        (a, b) => (ROLE_ORDER[getMemberRole(a.id)] ?? 2) - (ROLE_ORDER[getMemberRole(b.id)] ?? 2)
+      );
+    }
+    return list;
+  }
 
   const selectedThread = threads.find((t) => t.id === selectedThreadId) ?? null;
   const currentMessages = selectedThreadId
@@ -513,11 +554,13 @@ export default function DmPage() {
             G
           </div>
         ) : (
-          <Avatar size={32} label={name[0]} tone={tone} />
+          <button className="flex-none hover:opacity-70 transition-opacity" onClick={() => other && setProfileUser(other)}>
+            <Avatar size={32} label={name[0]} tone={tone} />
+          </button>
         )}
-        <div className="flex-1 min-w-0">
+        <button className="flex-1 min-w-0 text-left" onClick={() => !thread.isGroup && other && setProfileUser(other)} disabled={thread.isGroup}>
           <div className="flex items-center gap-1.5">
-            <span className="text-[13px] font-bold">{name}</span>
+            <span className={`text-[13px] font-bold ${!thread.isGroup ? "hover:underline" : ""}`}>{name}</span>
             {!thread.isGroup && other && (
               <RankBadge xp={other.xp} compact showName={false} />
             )}
@@ -529,7 +572,7 @@ export default function DmPage() {
               ? "オンライン"
               : "オフライン"}
           </div>
-        </div>
+        </button>
         {thread.isGroup && (
           <button
             onClick={() => setSpView("group_settings")}
@@ -625,22 +668,22 @@ export default function DmPage() {
   const MEMBER_FILTER_TAGS = ["すべて", "運営", "店主", "新規", "オンライン"];
 
   function memberList(onDm: (userId: string) => void) {
-    return USERS.filter((u) => u.id !== CURRENT_USER_ID).map((u) => {
+    return sortedAndFilteredMembers(USERS).map((u) => {
       const role = getMemberRole(u.id);
       return (
         <div
           key={u.id}
           className="flex items-center gap-3 px-4 py-2.5 border-b border-[#dedee5]"
         >
-          <div className="relative flex-none">
+          <button className="relative flex-none hover:opacity-70 transition-opacity" onClick={() => setProfileUser(u)}>
             <Avatar size={36} label={u.initial} tone={u.tone} />
             {u.isOnline && (
               <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-[#5da177] border-2 border-white" />
             )}
-          </div>
-          <div className="flex-1 min-w-0">
+          </button>
+          <button className="flex-1 min-w-0 text-left" onClick={() => setProfileUser(u)}>
             <div className="flex items-center gap-1.5">
-              <span className="text-[12.5px] font-semibold">{u.name}</span>
+              <span className="text-[12.5px] font-semibold hover:underline">{u.name}</span>
               {role !== "メンバー" && (
                 <span
                   className={`text-[9px] font-bold px-[5px] py-[1px] rounded ${
@@ -656,7 +699,7 @@ export default function DmPage() {
             <div className="text-[10.5px] text-[#9a9aa0] mt-0.5">
               {u.tags?.join(" · ")}
             </div>
-          </div>
+          </button>
           <button
             onClick={() => onDm(u.id)}
             className="flex-none text-[10.5px] font-semibold text-[#525261] px-2.5 py-1.5 rounded-full border border-[#dedee5] hover:border-[#9a9aa0] transition-colors whitespace-nowrap"
@@ -679,35 +722,12 @@ export default function DmPage() {
   // ─── PC Section ───────────────────────────────────────────────────────────
 
   const pcSection = (
-    <div className="hidden md:flex flex-col h-full bg-white">
-      <PcHeader
-        title="DM"
-        right={
-          <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1.5 px-3 py-1.5 border border-[#dedee5] rounded-lg bg-[#f1f1f5]">
-              <span className="text-[12px] text-[#9a9aa0]">⌕</span>
-              <input
-                className="text-[12px] outline-none bg-transparent w-40 placeholder:text-[#9a9aa0]"
-                placeholder="メンバー・スレッドを検索"
-              />
-            </div>
-            <button
-              onClick={() => {
-                resetCompose();
-                setPcCompose(true);
-              }}
-              className="text-[12px] font-semibold px-3 py-1.5 rounded-lg bg-[#1a1a1a] text-white whitespace-nowrap"
-            >
-              + 新規DM
-            </button>
-          </div>
-        }
-      />
+    <div className="hidden md:flex flex-col h-full bg-white relative">
       <div className="flex flex-1 overflow-hidden">
         {/* Left panel: threads / members */}
         <div className="w-[280px] flex-none border-r border-[#dedee5] flex flex-col overflow-hidden">
-          {/* Tab switcher */}
-          <div className="flex gap-1 px-3 py-2.5 border-b border-[#dedee5]">
+          {/* Tab switcher + New DM */}
+          <div className="flex items-center gap-1 px-3 py-2.5 border-b border-[#dedee5]">
             {["スレッド", "メンバー"].map((t, i) => (
               <button
                 key={t}
@@ -721,6 +741,16 @@ export default function DmPage() {
                 {t}
               </button>
             ))}
+            <button
+              onClick={() => { setPcCompose(true); setPcThreadId(""); }}
+              className="flex-none w-7 h-7 flex items-center justify-center rounded-md bg-[#1a1a1a] text-white hover:bg-[#333] transition-colors"
+              aria-label="新規DM"
+              title="新規DM"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                <path d="M12 5v14M5 12h14" />
+              </svg>
+            </button>
           </div>
 
           {/* Thread list or member list */}
@@ -748,24 +778,24 @@ export default function DmPage() {
                   <span className="text-[#9a9aa0] font-mono tracking-wide">
                     {USERS.length} 人 · オンライン 3
                   </span>
-                  <button onClick={() => alert("並び替え機能は今後実装予定です")} className="text-[#9a9aa0] cursor-pointer">並び替え ▾</button>
+                  <button onClick={cycleMemberSort} className="text-[#9a9aa0] cursor-pointer">{memberSortLabel}</button>
                 </div>
-                {USERS.filter((u) => u.id !== CURRENT_USER_ID).map((u) => {
+                {sortedAndFilteredMembers(USERS).map((u) => {
                   const role = getMemberRole(u.id);
                   return (
                     <div
                       key={u.id}
                       className="flex items-center gap-3 px-4 py-2.5 border-b border-[#dedee5]"
                     >
-                      <div className="relative flex-none">
+                      <button className="relative flex-none hover:opacity-70 transition-opacity" onClick={() => setProfileUser(u)}>
                         <Avatar size={32} label={u.initial} tone={u.tone} />
                         {u.isOnline && (
                           <span className="absolute bottom-0 right-0 w-2 h-2 rounded-full bg-[#5da177] border-2 border-white" />
                         )}
-                      </div>
-                      <div className="flex-1 min-w-0">
+                      </button>
+                      <button className="flex-1 min-w-0 text-left" onClick={() => setProfileUser(u)}>
                         <div className="flex items-center gap-1 mb-0.5">
-                          <span className="text-[12px] font-semibold truncate">{u.name}</span>
+                          <span className="text-[12px] font-semibold truncate hover:underline">{u.name}</span>
                           {role !== "メンバー" && (
                             <span
                               className={`flex-none text-[9px] font-bold px-[4px] py-[1px] rounded ${
@@ -781,7 +811,7 @@ export default function DmPage() {
                         <div className="text-[10px] text-[#9a9aa0] truncate">
                           {u.tags?.join(" · ")}
                         </div>
-                      </div>
+                      </button>
                       <button
                         onClick={() => {
                           const threadId = openOrCreateThread(u.id);
@@ -946,33 +976,42 @@ export default function DmPage() {
             <>
               {/* Conversation header */}
               <div className="flex-none flex items-center gap-2.5 px-5 py-3 border-b border-[#dedee5]">
-                {pcThread.isGroup ? (
-                  <div className="w-8 h-8 rounded-lg bg-[#e8e8f0] flex items-center justify-center text-[12px] font-bold text-[#525261]">
-                    G
-                  </div>
-                ) : (
-                  <Avatar
-                    size={32}
-                    label={getThreadDisplayName(pcThread)[0]}
-                    tone={getThreadTone(pcThread)}
-                  />
-                )}
-                <div className="flex-1 min-w-0">
-                  <div className="text-[13px] font-bold">
-                    {getThreadDisplayName(pcThread)}
-                  </div>
-                  <div className="text-[10px] text-[#9a9aa0] font-mono">
-                    {pcThread.isOnline ? "オンライン · 最終ログイン 5分前" : "オフライン"}
-                  </div>
-                </div>
+                {(() => {
+                  const otherId = !pcThread.isGroup ? pcThread.participantIds.find((id) => id !== CURRENT_USER_ID) : undefined;
+                  const otherUser = otherId ? getUserById(otherId) : undefined;
+                  const handleClickUser = otherUser ? () => setProfileUser(otherUser) : undefined;
+                  return (
+                    <>
+                      {pcThread.isGroup ? (
+                        <div className="w-8 h-8 rounded-lg bg-[#e8e8f0] flex items-center justify-center text-[12px] font-bold text-[#525261]">
+                          G
+                        </div>
+                      ) : (
+                        <button onClick={handleClickUser} className="flex-none rounded-full hover:opacity-70 transition-opacity">
+                          <Avatar
+                            size={32}
+                            label={getThreadDisplayName(pcThread)[0]}
+                            tone={getThreadTone(pcThread)}
+                          />
+                        </button>
+                      )}
+                      <button onClick={handleClickUser} className="flex-1 min-w-0 text-left" disabled={!handleClickUser}>
+                        <div className="text-[13px] font-bold hover:underline">
+                          {getThreadDisplayName(pcThread)}
+                        </div>
+                        <div className="text-[10px] text-[#9a9aa0] font-mono">
+                          {pcThread.isOnline ? "オンライン · 最終ログイン 5分前" : "オフライン"}
+                        </div>
+                      </button>
+                    </>
+                  );
+                })()}
                 {!pcThread.isGroup && (
                   <button
                     onClick={() => {
                       const otherId = pcThread.participantIds.find((id) => id !== CURRENT_USER_ID);
                       const other = otherId ? getUserById(otherId) : undefined;
-                      if (other) {
-                        alert(`${other.name}\nランク: ${other.rank === "premium" ? "プレミアム" : "ベーシック"}\nXP: ${other.xp}\nDAO: ${other.daoBalance}\nタグ: ${other.tags?.join(", ") ?? "なし"}\n${other.bio ?? ""}`);
-                      }
+                      if (other) setProfileUser(other);
                     }}
                     className="text-[12px] font-semibold text-[#525261] px-3 py-1.5 rounded-lg hover:bg-[#f1f1f5] transition-colors"
                   >
@@ -1263,6 +1302,7 @@ export default function DmPage() {
           )}
         </div>
       </div>
+
     </div>
   );
 
@@ -1274,9 +1314,6 @@ export default function DmPage() {
       <div className="flex flex-col h-full">
         {/* SP */}
         <div className="md:hidden flex flex-col h-full relative">
-          <TopBar
-            title="メッセージ"
-          />
           {/* Tabs */}
           <div className="flex-none flex border-b border-[#dedee5]">
             {["メッセージ", "メンバー"].map((tab, i) => (
@@ -1300,12 +1337,18 @@ export default function DmPage() {
               <div className="flex-none px-4 py-2 border-b border-[#dedee5]">
                 <div className="flex items-center gap-2 px-3 py-2 bg-[#f1f1f5] rounded-lg">
                   <span className="text-[#9a9aa0] text-[14px]">⌕</span>
-                  <span className="text-[12px] text-[#9a9aa0]">検索</span>
+                  <input
+                    type="text"
+                    value={spSearchQuery}
+                    onChange={(e) => setSpSearchQuery(e.target.value)}
+                    placeholder="検索"
+                    className="flex-1 bg-transparent text-[12px] text-[#1a1a1a] placeholder-[#9a9aa0] outline-none"
+                  />
                 </div>
               </div>
               {/* Thread list */}
               <div className="flex-1 overflow-y-auto">
-                {threads.map((th) => (
+                {threads.filter((th) => spSearchQuery === "" || getThreadDisplayName(th).toLowerCase().includes(spSearchQuery.toLowerCase())).map((th) => (
                   <ThreadRow
                     key={th.id}
                     thread={th}
@@ -1321,24 +1364,29 @@ export default function DmPage() {
                 <span className="text-[11px] text-[#9a9aa0] font-mono tracking-wide">
                   312人 · オンライン 24
                 </span>
-                <button onClick={() => alert("並び替え機能は今後実装予定です")} className="text-[10px] text-[#9a9aa0] cursor-pointer">
-                  並び替え ▾
+                <button onClick={cycleMemberSort} className="text-[10px] text-[#9a9aa0] cursor-pointer">
+                  {memberSortLabel}
                 </button>
               </div>
               {/* Filter chips */}
               <div className="flex-none flex gap-1.5 px-4 pb-2 overflow-x-auto">
-                {MEMBER_FILTER_TAGS.map((t, i) => (
-                  <span
-                    key={t}
-                    className={`flex-none text-[11px] px-3 py-1 rounded-full border whitespace-nowrap ${
-                      i === 0
-                        ? "bg-[#1a1a1a] text-white border-[#1a1a1a] font-semibold"
-                        : "bg-white text-[#525261] border-[#dedee5] font-medium"
-                    }`}
-                  >
-                    {t}
-                  </span>
-                ))}
+                {(["all", "運営", "店主"] as const).map((t) => {
+                  const label = t === "all" ? "すべて" : t;
+                  const isActive = memberFilter === t;
+                  return (
+                    <button
+                      key={t}
+                      onClick={() => setMemberFilter(t)}
+                      className={`flex-none text-[11px] px-3 py-1 rounded-full border whitespace-nowrap ${
+                        isActive
+                          ? "bg-[#1a1a1a] text-white border-[#1a1a1a] font-semibold"
+                          : "bg-white text-[#525261] border-[#dedee5] font-medium"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
               </div>
               {/* Member list */}
               <div className="flex-1 overflow-y-auto">
@@ -1360,6 +1408,7 @@ export default function DmPage() {
         </div>
 
         {pcSection}
+        <ProfileModal user={profileUser} onClose={() => setProfileUser(null)} onDm={(u) => { const tid = openOrCreateThread(u.id); setPcThreadId(tid); setPcCompose(false); }} />
       </div>
     );
   }
@@ -1406,6 +1455,7 @@ export default function DmPage() {
         </div>
 
         {pcSection}
+        <ProfileModal user={profileUser} onClose={() => setProfileUser(null)} onDm={(u) => { const tid = openOrCreateThread(u.id); setPcThreadId(tid); setPcCompose(false); }} />
       </div>
     );
   }
@@ -1580,6 +1630,7 @@ export default function DmPage() {
         </div>
 
         {pcSection}
+        <ProfileModal user={profileUser} onClose={() => setProfileUser(null)} onDm={(u) => { const tid = openOrCreateThread(u.id); setPcThreadId(tid); setPcCompose(false); }} />
       </div>
     );
   }
@@ -1738,6 +1789,7 @@ export default function DmPage() {
         </div>
 
         {pcSection}
+        <ProfileModal user={profileUser} onClose={() => setProfileUser(null)} onDm={(u) => { const tid = openOrCreateThread(u.id); setPcThreadId(tid); setPcCompose(false); }} />
       </div>
     );
   }
@@ -1747,6 +1799,7 @@ export default function DmPage() {
     <div className="flex flex-col h-full">
       <div className="md:hidden" />
       {pcSection}
+      <ProfileModal user={profileUser} onClose={() => setProfileUser(null)} onDm={(u) => { const tid = openOrCreateThread(u.id); setPcThreadId(tid); setPcCompose(false); }} />
     </div>
   );
 }

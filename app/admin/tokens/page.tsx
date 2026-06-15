@@ -42,22 +42,6 @@ const REWARD_COLS: ColDef[] = [
   { key: "edit",    label: "",          flex: 0.5, align: "right" },
 ];
 
-function buildRewardRows(): Record<string, ReactNode>[] {
-  return REWARDS.map((r) => ({
-    trigger: r.trigger,
-    amt:     <span className="text-[#6666ff]">{r.amt} DAO</span>,
-    freq:    r.freq,
-    edit: (
-      <button
-        className="text-[#525261] text-[11px] cursor-pointer hover:text-[#1a1a1a]"
-        onClick={() => alert("報酬設定の編集画面は今後実装予定です")}
-      >
-        編集 ›
-      </button>
-    ),
-  }));
-}
-
 // ─── Rank Data ───────────────────────────────────────────────────────────
 
 const NEAR_PREMIUM = [
@@ -77,6 +61,17 @@ function ConditionRow({
   unit,
   menuOpen,
   setMenuOpen,
+  onEdit,
+  onDelete,
+  editing,
+  editValue,
+  setEditValue,
+  editUnit,
+  setEditUnit,
+  onSaveEdit,
+  onCancelEdit,
+  confirmDeleteId,
+  setConfirmDeleteId,
 }: {
   id: string;
   label: string;
@@ -85,6 +80,17 @@ function ConditionRow({
   unit: string;
   menuOpen: string | null;
   setMenuOpen: (id: string | null) => void;
+  onEdit: () => void;
+  onDelete: () => void;
+  editing: boolean;
+  editValue: string;
+  setEditValue: (v: string) => void;
+  editUnit: string;
+  setEditUnit: (v: string) => void;
+  onSaveEdit: () => void;
+  onCancelEdit: () => void;
+  confirmDeleteId: string | null;
+  setConfirmDeleteId: (id: string | null) => void;
 }) {
   return (
     <div className="flex items-center gap-3 p-3 border border-[#dedee5] rounded-lg bg-[#f1f1f5] mb-2">
@@ -92,50 +98,109 @@ function ConditionRow({
         <div className="text-[12.5px] font-semibold">{label}</div>
         <div className="text-[10px] text-[#9a9aa0] mt-0.5">{valueLabel}</div>
       </div>
-      <div className="flex items-center gap-1.5 px-2.5 py-1 border-[1.5px] border-[#1a1a1a] rounded-md bg-white font-mono font-bold text-[14px]">
-        <span className="text-[11px] text-[#9a9aa0]">−</span>
-        {value}
-        <span className="text-[11px] text-[#9a9aa0]">+</span>
-      </div>
-      <span className="text-[11px] text-[#525261] min-w-[56px]">{unit}</span>
-      <div className="relative">
-        <button
-          className="text-[#9a9aa0] cursor-pointer hover:text-[#1a1a1a]"
-          onClick={(e) => { e.stopPropagation(); setMenuOpen(menuOpen === id ? null : id); }}
-        >
-          ⋯
-        </button>
-        {menuOpen === id && (
-          <div className="absolute right-0 top-full mt-1 w-32 bg-white border border-[#dedee5] rounded-lg shadow-lg z-20 py-1">
-            <button
-              className="w-full text-left px-3 py-2 text-[12px] hover:bg-[#f1f1f5]"
-              onClick={() => { alert(`「${label}」の条件を編集します（デモ）`); setMenuOpen(null); }}
-            >
-              編集
-            </button>
-            <button
-              className="w-full text-left px-3 py-2 text-[12px] text-[#6666ff] hover:bg-[#f1f1f5]"
-              onClick={() => { alert(`「${label}」の条件を削除します（デモ）`); setMenuOpen(null); }}
-            >
-              削除
-            </button>
+      {confirmDeleteId === id ? (
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] text-red-600 font-semibold">削除しますか？</span>
+          <button onClick={() => { onDelete(); setConfirmDeleteId(null); }} className="text-[10px] px-2 py-1 bg-red-600 text-white rounded font-semibold">確認</button>
+          <button onClick={() => setConfirmDeleteId(null)} className="text-[10px] px-2 py-1 bg-[#f1f1f5] rounded font-semibold">キャンセル</button>
+        </div>
+      ) : editing ? (
+        <>
+          <input
+            type="number"
+            className="w-[60px] px-2 py-1 border border-[#6666ff] rounded text-[14px] font-mono font-bold text-center outline-none"
+            value={editValue}
+            onChange={(e) => setEditValue(e.target.value)}
+          />
+          <input
+            className="w-[80px] px-2 py-1 border border-[#6666ff] rounded text-[11px] outline-none"
+            value={editUnit}
+            onChange={(e) => setEditUnit(e.target.value)}
+          />
+          <button
+            className="text-[11px] text-[#6666ff] font-semibold cursor-pointer hover:underline"
+            onClick={onSaveEdit}
+          >
+            保存
+          </button>
+          <button
+            className="text-[11px] text-[#9a9aa0] cursor-pointer hover:text-[#1a1a1a]"
+            onClick={onCancelEdit}
+          >
+            取消
+          </button>
+        </>
+      ) : (
+        <>
+          <div className="flex items-center gap-1.5 px-2.5 py-1 border-[1.5px] border-[#1a1a1a] rounded-md bg-white font-mono font-bold text-[14px]">
+            <span className="text-[11px] text-[#9a9aa0]">−</span>
+            {value}
+            <span className="text-[11px] text-[#9a9aa0]">+</span>
           </div>
-        )}
-      </div>
+          <span className="text-[11px] text-[#525261] min-w-[56px]">{unit}</span>
+          <div className="relative">
+            <button
+              className="text-[#9a9aa0] cursor-pointer hover:text-[#1a1a1a]"
+              onClick={(e) => { e.stopPropagation(); setMenuOpen(menuOpen === id ? null : id); }}
+            >
+              ⋯
+            </button>
+            {menuOpen === id && (
+              <div className="absolute right-0 top-full mt-1 w-32 bg-white border border-[#dedee5] rounded-lg shadow-lg z-20 py-1">
+                <button
+                  className="w-full text-left px-3 py-2 text-[12px] hover:bg-[#f1f1f5]"
+                  onClick={() => { onEdit(); setMenuOpen(null); }}
+                >
+                  編集
+                </button>
+                <button
+                  className="w-full text-left px-3 py-2 text-[12px] text-[#6666ff] hover:bg-[#f1f1f5]"
+                  onClick={() => { setConfirmDeleteId(id); setMenuOpen(null); }}
+                >
+                  削除
+                </button>
+              </div>
+            )}
+          </div>
+        </>
+      )}
     </div>
   );
 }
 
-function BenefitRow({ icon, text }: { icon: string; text: string }) {
+function BenefitRow({
+  icon,
+  text,
+  editing,
+  editText,
+  setEditText,
+  onToggleEdit,
+}: {
+  icon: string;
+  text: string;
+  editing: boolean;
+  editText: string;
+  setEditText: (v: string) => void;
+  onToggleEdit: () => void;
+}) {
   return (
     <div className="flex items-center gap-2 px-2.5 py-2 bg-[#f1f1f5] rounded-md text-[11.5px]">
       <span className="text-[14px] text-[#6666ff]">{icon}</span>
-      <span className="flex-1">{text}</span>
+      {editing ? (
+        <input
+          className="flex-1 px-2 py-0.5 border border-[#6666ff] rounded text-[11.5px] outline-none"
+          value={editText}
+          onChange={(e) => setEditText(e.target.value)}
+          autoFocus
+        />
+      ) : (
+        <span className="flex-1">{text}</span>
+      )}
       <button
         className="text-[10px] text-[#9a9aa0] cursor-pointer hover:text-[#1a1a1a]"
-        onClick={() => alert("ランク条件の編集画面は今後実装予定です")}
+        onClick={onToggleEdit}
       >
-        編集
+        {editing ? "保存" : "編集"}
       </button>
     </div>
   );
@@ -147,7 +212,80 @@ export default function AdminTokensPage() {
   const [activeTab, setActiveTab] = useState<Tab>("トークン経済");
   const [menuOpen, setMenuOpen] = useState<string | null>(null);
 
-  const rows = buildRewardRows();
+  // ── Token issuance state ──
+  const [issuing, setIssuing] = useState(false);
+  const [issueReason, setIssueReason] = useState("");
+  const [issueAmount, setIssueAmount] = useState("");
+  const [issueTarget, setIssueTarget] = useState("");
+  const [issuances, setIssuances] = useState(ISSUANCES);
+
+  // ── Rewards state ──
+  const [rewards, setRewards] = useState(REWARDS);
+  const [editingReward, setEditingReward] = useState<number | null>(null);
+  const [editAmt, setEditAmt] = useState("");
+  const [editFreq, setEditFreq] = useState("");
+
+  // ── Conditions state ──
+  const [conditions, setConditions] = useState([
+    { id: "cond-checkin", label: "チェックイン回数", valueLabel: "今年の累計", value: 10, unit: "回以上" },
+    { id: "cond-duty", label: "担い手活動の参加", valueLabel: "今年の累計", value: 1, unit: "回以上" },
+  ]);
+  const [editingCondition, setEditingCondition] = useState<string | null>(null);
+  const [editCondValue, setEditCondValue] = useState("");
+  const [editCondUnit, setEditCondUnit] = useState("");
+
+  // ── Add condition state ──
+  const [addingCondition, setAddingCondition] = useState(false);
+  const [newCondLabel, setNewCondLabel] = useState("");
+  const [newCondValue, setNewCondValue] = useState("");
+  const [newCondUnit, setNewCondUnit] = useState("");
+
+  // ── Benefits state ──
+  const [benefits, setBenefits] = useState([
+    { icon: "◈", text: "500 DAO ボーナス付与" },
+    { icon: "✉", text: "達成通知をプッシュ送信" },
+    { icon: "🏷", text: "プロフィールに★バッジ表示" },
+  ]);
+  const [editingBenefit, setEditingBenefit] = useState<number | null>(null);
+  const [editBenefitText, setEditBenefitText] = useState("");
+
+  // ── Rank save / preview state ──
+  const [rankSaved, setRankSaved] = useState(false);
+  const [previewing, setPreviewing] = useState(false);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+
+  // ── Build reward rows (now uses state) ──
+  const rows: Record<string, ReactNode>[] = rewards.map((r, idx) => ({
+    trigger: r.trigger,
+    amt: editingReward === idx ? (
+      <input className="w-24 px-1.5 py-0.5 border border-[#6666ff] rounded text-[11px] font-mono" value={editAmt} onChange={(e) => setEditAmt(e.target.value)} />
+    ) : (
+      <span className="text-[#6666ff]">{r.amt} DAO</span>
+    ),
+    freq: editingReward === idx ? (
+      <input className="w-32 px-1.5 py-0.5 border border-[#6666ff] rounded text-[11px]" value={editFreq} onChange={(e) => setEditFreq(e.target.value)} />
+    ) : (
+      r.freq
+    ),
+    edit: editingReward === idx ? (
+      <button
+        className="text-[#6666ff] text-[11px] cursor-pointer hover:text-[#1a1a1a] font-semibold"
+        onClick={() => {
+          setRewards(prev => prev.map((rw, i) => i === editingReward ? { ...rw, amt: editAmt, freq: editFreq } : rw));
+          setEditingReward(null);
+        }}
+      >
+        保存 ›
+      </button>
+    ) : (
+      <button
+        className="text-[#525261] text-[11px] cursor-pointer hover:text-[#1a1a1a]"
+        onClick={() => { setEditingReward(idx); setEditAmt(r.amt); setEditFreq(r.freq); }}
+      >
+        編集 ›
+      </button>
+    ),
+  }));
 
   // Close menu on outside click (for rank tab)
   useEffect(() => {
@@ -163,13 +301,24 @@ export default function AdminTokensPage() {
 
   const actions = activeTab === "トークン経済" ? (
     <>
-      <AdminBtn variant="outline" icon="↓" onClick={() => alert("発行履歴のCSVダウンロードを開始しました（デモ）")}>発行履歴をダウンロード</AdminBtn>
-      <AdminBtn icon="◈" onClick={() => alert("トークン発行画面は今後実装予定です")}>トークンを発行</AdminBtn>
+      <AdminBtn variant="outline" icon="↓" onClick={() => {
+        const header = "日時,担当者,内容,金額,種別";
+        const csvRows = issuances.map(a => [a.t, a.who, a.what, a.amt, a.kind].join(","));
+        const csv = [header, ...csvRows].join("\n");
+        const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `token_history_${new Date().toISOString().slice(0, 10)}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
+      }}>発行履歴をダウンロード</AdminBtn>
+      <AdminBtn icon="◈" onClick={() => setIssuing(true)}>トークンを発行</AdminBtn>
     </>
   ) : (
     <>
-      <AdminBtn variant="outline" onClick={() => alert("ランク変更の影響をプレビューします（デモ）")}>プレビュー</AdminBtn>
-      <AdminBtn onClick={() => alert("ランク条件を保存しました（デモ）")}>保存</AdminBtn>
+      <AdminBtn variant="outline" onClick={() => setPreviewing(prev => !prev)}>{previewing ? "プレビューを閉じる" : "プレビュー"}</AdminBtn>
+      <AdminBtn onClick={() => { setRankSaved(true); setTimeout(() => setRankSaved(false), 2000); }}>{rankSaved ? "✓ 保存しました" : "保存"}</AdminBtn>
     </>
   );
 
@@ -202,6 +351,49 @@ export default function AdminTokensPage() {
         {activeTab === "トークン経済" ? (
           /* ── Tokens tab content ── */
           <>
+            {/* Inline issuance form */}
+            {issuing && (
+              <div className="border-[1.5px] border-[#6666ff] rounded-[10px] bg-white p-4 mb-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="text-[14px] font-bold">トークンを発行</div>
+                  <button onClick={() => { setIssuing(false); setIssueReason(""); setIssueAmount(""); setIssueTarget(""); }} className="text-[#9a9aa0] hover:text-[#1a1a1a] text-[18px] leading-none cursor-pointer">×</button>
+                </div>
+                <div className="flex flex-col gap-3">
+                  <div>
+                    <div className="text-[11px] font-semibold text-[#525261] mb-1">対象者</div>
+                    <input className="w-full px-3 py-2 border border-[#dedee5] rounded-md text-[12.5px] outline-none focus:border-[#6666ff]" placeholder="例: 田中 太郎" value={issueTarget} onChange={(e) => setIssueTarget(e.target.value)} />
+                  </div>
+                  <div className="flex gap-3">
+                    <div>
+                      <div className="text-[11px] font-semibold text-[#525261] mb-1">発行量 (DAO)</div>
+                      <input className="w-[160px] px-3 py-2 border border-[#dedee5] rounded-md text-[12.5px] font-mono outline-none focus:border-[#6666ff]" placeholder="0" value={issueAmount} onChange={(e) => setIssueAmount(e.target.value)} />
+                    </div>
+                    <div className="flex-1">
+                      <div className="text-[11px] font-semibold text-[#525261] mb-1">理由</div>
+                      <input className="w-full px-3 py-2 border border-[#dedee5] rounded-md text-[12.5px] outline-none focus:border-[#6666ff]" placeholder="例: 新規メンバー初回特典" value={issueReason} onChange={(e) => setIssueReason(e.target.value)} />
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <AdminBtn disabled={!issueAmount.trim() || !issueTarget.trim()} onClick={() => {
+                      const newIssuance = {
+                        t: "たった今",
+                        who: issueTarget,
+                        what: issueReason || "手動発行",
+                        amt: `+${issueAmount}`,
+                        kind: "mint" as const,
+                      };
+                      setIssuances(prev => [newIssuance, ...prev]);
+                      setIssuing(false);
+                      setIssueReason("");
+                      setIssueAmount("");
+                      setIssueTarget("");
+                    }}>発行する</AdminBtn>
+                    <AdminBtn variant="outline" onClick={() => { setIssuing(false); setIssueReason(""); setIssueAmount(""); setIssueTarget(""); }}>キャンセル</AdminBtn>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* KPIs */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               <StatCard label="総流通量"   value="58,420" delta="+2.1%" sub="DAO" />
@@ -225,7 +417,7 @@ export default function AdminTokensPage() {
 
                 <div className="p-4 border border-[#dedee5] rounded-[10px] bg-white">
                   <div className="text-[14px] font-bold mb-2.5">最近の発行・調整</div>
-                  {ISSUANCES.map((a, i) => (
+                  {issuances.map((a, i) => (
                     <div
                       key={i}
                       className="flex items-center gap-2.5 py-2 border-b border-[#dedee5] last:border-b-0"
@@ -305,26 +497,82 @@ export default function AdminTokensPage() {
                 <div className="text-[11px] text-[#9a9aa0] font-mono tracking-[0.5px] mb-2">
                   達成条件 (AND)
                 </div>
-                <ConditionRow
-                  id="cond-checkin"
-                  label="チェックイン回数"
-                  valueLabel="今年の累計"
-                  value={10}
-                  unit="回以上"
-                  menuOpen={menuOpen}
-                  setMenuOpen={setMenuOpen}
-                />
-                <ConditionRow
-                  id="cond-duty"
-                  label="担い手活動の参加"
-                  valueLabel="今年の累計"
-                  value={1}
-                  unit="回以上"
-                  menuOpen={menuOpen}
-                  setMenuOpen={setMenuOpen}
-                />
+                {conditions.map((c) => (
+                  <ConditionRow
+                    key={c.id}
+                    id={c.id}
+                    label={c.label}
+                    valueLabel={c.valueLabel}
+                    value={c.value}
+                    unit={c.unit}
+                    menuOpen={menuOpen}
+                    setMenuOpen={setMenuOpen}
+                    editing={editingCondition === c.id}
+                    editValue={editCondValue}
+                    setEditValue={setEditCondValue}
+                    editUnit={editCondUnit}
+                    setEditUnit={setEditCondUnit}
+                    onEdit={() => {
+                      setEditingCondition(c.id);
+                      setEditCondValue(String(c.value));
+                      setEditCondUnit(c.unit);
+                    }}
+                    onDelete={() => {
+                      setConditions(prev => prev.filter(cond => cond.id !== c.id));
+                    }}
+                    onSaveEdit={() => {
+                      setConditions(prev => prev.map(cond =>
+                        cond.id === c.id
+                          ? { ...cond, value: parseInt(editCondValue) || 0, unit: editCondUnit }
+                          : cond
+                      ));
+                      setEditingCondition(null);
+                    }}
+                    onCancelEdit={() => {
+                      setEditingCondition(null);
+                    }}
+                    confirmDeleteId={confirmDeleteId}
+                    setConfirmDeleteId={setConfirmDeleteId}
+                  />
+                ))}
                 <div className="mt-1 mb-4">
-                  <AdminBtn variant="ghost" icon="+" onClick={() => alert("新しいランク条件の追加画面は今後実装予定です")}>条件を追加</AdminBtn>
+                  {addingCondition ? (
+                    <div className="border border-[#6666ff] rounded-lg p-3 mb-2">
+                      <div className="text-[12px] font-semibold mb-2">新しい条件を追加</div>
+                      <div className="flex gap-2 items-end flex-wrap">
+                        <div>
+                          <div className="text-[10px] text-[#9a9aa0] mb-1">条件名</div>
+                          <input className="w-[180px] px-2 py-1.5 border border-[#dedee5] rounded text-[12px] outline-none focus:border-[#6666ff]" value={newCondLabel} onChange={(e) => setNewCondLabel(e.target.value)} placeholder="例: 投票参加回数" />
+                        </div>
+                        <div>
+                          <div className="text-[10px] text-[#9a9aa0] mb-1">値</div>
+                          <input type="number" className="w-[80px] px-2 py-1.5 border border-[#dedee5] rounded text-[12px] font-mono outline-none focus:border-[#6666ff]" value={newCondValue} onChange={(e) => setNewCondValue(e.target.value)} placeholder="5" />
+                        </div>
+                        <div>
+                          <div className="text-[10px] text-[#9a9aa0] mb-1">単位</div>
+                          <input className="w-[100px] px-2 py-1.5 border border-[#dedee5] rounded text-[12px] outline-none focus:border-[#6666ff]" value={newCondUnit} onChange={(e) => setNewCondUnit(e.target.value)} placeholder="回以上" />
+                        </div>
+                        <AdminBtn onClick={() => {
+                          if (newCondLabel.trim()) {
+                            setConditions(prev => [...prev, {
+                              id: `cond-${Date.now()}`,
+                              label: newCondLabel,
+                              valueLabel: "今年の累計",
+                              value: parseInt(newCondValue) || 0,
+                              unit: newCondUnit || "回以上",
+                            }]);
+                            setAddingCondition(false);
+                            setNewCondLabel("");
+                            setNewCondValue("");
+                            setNewCondUnit("");
+                          }
+                        }}>追加</AdminBtn>
+                        <AdminBtn variant="ghost" onClick={() => setAddingCondition(false)}>キャンセル</AdminBtn>
+                      </div>
+                    </div>
+                  ) : (
+                    <AdminBtn variant="ghost" icon="+" onClick={() => setAddingCondition(true)}>条件を追加</AdminBtn>
+                  )}
                 </div>
 
                 <div className="flex-1" />
@@ -333,9 +581,25 @@ export default function AdminTokensPage() {
                   達成時の特典
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  <BenefitRow icon="◈" text="500 DAO ボーナス付与" />
-                  <BenefitRow icon="✉" text="達成通知をプッシュ送信" />
-                  <BenefitRow icon="🏷" text="プロフィールに★バッジ表示" />
+                  {benefits.map((b, idx) => (
+                    <BenefitRow
+                      key={idx}
+                      icon={b.icon}
+                      text={b.text}
+                      editing={editingBenefit === idx}
+                      editText={editBenefitText}
+                      setEditText={setEditBenefitText}
+                      onToggleEdit={() => {
+                        if (editingBenefit === idx) {
+                          setBenefits(prev => prev.map((ben, i) => i === idx ? { ...ben, text: editBenefitText } : ben));
+                          setEditingBenefit(null);
+                        } else {
+                          setEditingBenefit(idx);
+                          setEditBenefitText(b.text);
+                        }
+                      }}
+                    />
+                  ))}
                 </div>
               </div>
             </div>
